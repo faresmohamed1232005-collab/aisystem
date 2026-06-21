@@ -12,6 +12,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PendingOrderController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PurchaseInvoiceController;
+use App\Http\Controllers\PurchaseImportController;
 use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -88,6 +89,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/purchases', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
     Route::get('/purchases/create', [PurchaseInvoiceController::class, 'create'])->name('purchases.create');
     Route::post('/purchases', [PurchaseInvoiceController::class, 'store'])->name('purchases.store');
+
+    // استيراد فاتورة شراء من صورة (لازم قبل الـ wildcard تحت)
+    Route::get('/purchases/import', [PurchaseImportController::class, 'index'])->name('purchases.import');
+    Route::post('/purchases/import/extract', [PurchaseImportController::class, 'extract'])->name('purchases.import.extract');
+
     Route::get('/purchases/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
 
 });

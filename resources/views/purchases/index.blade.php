@@ -12,10 +12,16 @@
                     {{ $purchases->total() }} فاتورة
                 </span>
             </div>
-            <a href="{{ route('purchases.create') }}"
-                class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
-                <i class="fas fa-plus"></i> فاتورة شراء جديدة
-            </a>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('purchases.import') }}"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+                    <i class="fas fa-camera"></i> استيراد من صورة
+                </a>
+                <a href="{{ route('purchases.create') }}"
+                    class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+                    <i class="fas fa-plus"></i> فاتورة شراء جديدة
+                </a>
+            </div>
         </div>
 
         @if (session('success'))
