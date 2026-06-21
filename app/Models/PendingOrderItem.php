@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class PendingOrderItem extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'pending_order_id',
         'drug_id',

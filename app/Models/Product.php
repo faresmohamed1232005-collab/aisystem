@@ -1,9 +1,12 @@
 <?php
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class Product extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'user_id','name','barcode','category','price','cost_price',
         'quantity','min_quantity','expiry_date','manufacturer','description','image',

@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class SaleItem extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'sale_id',
         'drug_id',

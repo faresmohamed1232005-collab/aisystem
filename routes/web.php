@@ -77,6 +77,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.count');
 
+    // ===== المزامنة مع السيرفر (تشغيل يدوي/دوري من الواجهة) =====
+    Route::post('/sync/run', [\App\Http\Controllers\SyncWebController::class, 'run'])->name('sync.run');
+    Route::get('/sync/status', [\App\Http\Controllers\SyncWebController::class, 'status'])->name('sync.status');
+
+    // ===== تحديث التطبيق (فحص/تنزيل/تثبيت بإذن المستخدم) =====
+    Route::get('/update/status', [\App\Http\Controllers\UpdateController::class, 'status'])->name('update.status');
+    Route::post('/update/download', [\App\Http\Controllers\UpdateController::class, 'download'])->name('update.download');
+    Route::post('/update/install', [\App\Http\Controllers\UpdateController::class, 'install'])->name('update.install');
+
 
 
 

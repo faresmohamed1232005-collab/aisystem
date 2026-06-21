@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PurchaseReturnItem extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'purchase_return_id',
         'purchase_invoice_item_id',

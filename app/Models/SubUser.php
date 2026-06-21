@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 
 class SubUser extends Model
 {
+    use Syncable;
+
     use Authorizable;
 
     protected $fillable = ['owner_id', 'name', 'email', 'password', 'role', 'is_active'];

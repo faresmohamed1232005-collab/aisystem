@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class PurchaseInvoice extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'user_id','supplier_id','invoice_number',
         'total','discount','tax','net_total',

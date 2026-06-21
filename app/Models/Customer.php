@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class Customer extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'user_id',
         'code',
@@ -46,7 +49,7 @@ class Customer extends Model
     {
         $last = Customer::where('user_id', $userId)
             ->where('code', 'like', 'CUS-%')
-            ->orderByRaw('CAST(SUBSTRING(code, 5) AS UNSIGNED) DESC')
+            ->orderByRaw(\App\Support\Sql::castInt(\App\Support\Sql::substr('code', 5)) . ' DESC')
             ->value('code');
 
         $nextNumber = $last ? ((int) substr($last, 4)) + 1 : 1;

@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class SaleReturnItem extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'sale_return_id',
         'sale_item_id',

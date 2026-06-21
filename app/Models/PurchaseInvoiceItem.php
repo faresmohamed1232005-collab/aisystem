@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PurchaseInvoiceItem extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'purchase_invoice_id',
         'product_id',       // nullable - FK قديم

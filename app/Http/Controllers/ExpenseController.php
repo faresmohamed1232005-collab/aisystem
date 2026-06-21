@@ -44,7 +44,7 @@ class ExpenseController extends Controller
 
         // ── قائمة السنوات المتاحة (للفلتر) ──
         $years = Expense::where('user_id', $userId)
-            ->selectRaw('YEAR(expense_date) as yr')
+            ->selectRaw(\App\Support\Sql::year('expense_date') . ' as yr')
             ->distinct()
             ->orderByDesc('yr')
             ->pluck('yr')

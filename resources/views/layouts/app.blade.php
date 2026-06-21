@@ -421,6 +421,14 @@
                         </div>
                     @endif
 
+                    @if (config('sync.enabled'))
+                        {{-- زر المزامنة اليدوي مع السيرفر --}}
+                        <button id="sync-btn" onclick="runSync()" title="مزامنة مع السيرفر"
+                            class="relative w-9 h-9 rounded-lg bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-600 transition flex items-center justify-center">
+                            <i id="sync-icon" class="fas fa-sync-alt"></i>
+                        </button>
+                    @endif
+
                     {{-- جرس الإشعارات --}}
                     <a href="{{ route('notifications.index') }}"
                         class="relative w-9 h-9 rounded-lg bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-600 transition flex items-center justify-center">
@@ -504,6 +512,24 @@
                 </div>
             </header>
 
+            {{-- بانر التحديث: يظهر عند توفّر تحديث جديد (بإذن المستخدم) --}}
+            <div id="update-banner" class="hidden bg-indigo-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-sm flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-download"></i>
+                    <span id="update-banner-text">يوجد تحديث جديد للتطبيق</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="update-action-btn" onclick="handleUpdateAction()"
+                        class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold px-3 py-1 rounded-lg text-xs transition">
+                        حدّث الآن
+                    </button>
+                    <button onclick="document.getElementById('update-banner').classList.add('hidden')"
+                        class="text-indigo-200 hover:text-white text-xs px-1" title="إخفاء">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
             <main class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
                 @yield('content')
             </main>
@@ -553,6 +579,129 @@
         setInterval(loadNotifCount, 30000);
         loadPendingCount();
         setInterval(loadPendingCount, 30000);
+
+        @if (config('sync.enabled'))
+        // ===== المزامنة مع السيرفر (يدوي + تلقائي دوري) =====
+        let syncing = false;
+        async function runSync(silent = false) {
+            if (syncing) return;
+            syncing = true;
+            const icon = document.getElementById('sync-icon');
+            const btn = document.getElementById('sync-btn');
+            if (icon) icon.classList.add('fa-spin');
+            try {
+                const r = await fetch('{{ route('sync.run') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '',
+                        'Accept': 'application/json',
+                    },
+                });
+                const d = await r.json();
+                if (!silent) syncNotify(d.success, d.message || (d.success ? 'تمت المزامنة' : 'تعذّرت المزامنة'));
+                if (btn) btn.title = (d.message || 'مزامنة مع السيرفر');
+            } catch (e) {
+                if (!silent) syncNotify(false, 'تعذّر الاتصال بالمزامنة');
+            } finally {
+                if (icon) icon.classList.remove('fa-spin');
+                syncing = false;
+                refreshSyncStatus();
+            }
+        }
+        window.runSync = runSync;
+
+        // مؤشر الاتصال: يحدّث لون أيقونة الزر حسب آخر حالة مزامنة.
+        async function refreshSyncStatus() {
+            try {
+                const r = await fetch('{{ route('sync.status') }}', { headers: { 'Accept': 'application/json' } });
+                const d = await r.json();
+                const btn = document.getElementById('sync-btn');
+                const icon = document.getElementById('sync-icon');
+                if (!btn || !icon || !d.state) return;
+                const st = d.state.status;
+                btn.classList.remove('text-green-600', 'text-red-500', 'text-gray-600');
+                if (st === 'online') btn.classList.add('text-green-600');
+                else if (st === 'offline') btn.classList.add('text-red-500');
+                else btn.classList.add('text-gray-600');
+                if (st === 'syncing') icon.classList.add('fa-spin');
+                else if (!syncing) icon.classList.remove('fa-spin');
+                const last = d.state.last_success ? ('Last: ' + d.state.last_success) : '';
+                btn.title = (st === 'offline' && d.state.message ? d.state.message : 'مزامنة مع السيرفر') + (last ? ' — ' + last : '');
+            } catch (e) { /* تجاهل */ }
+        }
+        window.refreshSyncStatus = refreshSyncStatus;
+        // إشعار مزامنة آمن: يستخدم showToast إن وُجد، وإلا بانر بسيط أعلى الشاشة.
+        function syncNotify(success, msg) {
+            if (window.showToast) { window.showToast(success ? 'success' : 'error', success ? 'تمت المزامنة' : 'تعذّرت المزامنة', msg); return; }
+            const el = document.createElement('div');
+            el.textContent = msg;
+            el.style.cssText = 'position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:9999;'
+                + 'padding:10px 18px;border-radius:12px;font-size:13px;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15);'
+                + 'background:' + (success ? '#16a34a' : '#dc2626');
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3500);
+        }
+        // مزامنة تلقائية دورية في الخلفية (صامتة)
+        const SYNC_INTERVAL = {{ (int) config('sync.interval', 60) }} * 1000;
+        if (SYNC_INTERVAL >= 5000) setInterval(() => runSync(true), SYNC_INTERVAL);
+        // تحديث مؤشر الاتصال دورياً وعند البداية
+        refreshSyncStatus();
+        setInterval(refreshSyncStatus, 15000);
+        @endif
+
+        @if (config('nativephp.updater.enabled'))
+        // ===== تحديث التطبيق (بإذن المستخدم) =====
+        let updateStatus = 'none';
+        async function checkUpdateStatus() {
+            try {
+                const r = await fetch('{{ route('update.status') }}', { headers: { 'Accept': 'application/json' } });
+                const d = await r.json();
+                updateStatus = d.status;
+                const banner = document.getElementById('update-banner');
+                const text = document.getElementById('update-banner-text');
+                const actionBtn = document.getElementById('update-action-btn');
+                if (!banner) return;
+                if (d.status === 'available') {
+                    text.textContent = 'يوجد تحديث جديد للتطبيق' + (d.version ? ' (الإصدار ' + d.version + ')' : '');
+                    actionBtn.textContent = 'حدّث الآن';
+                    actionBtn.disabled = false;
+                    banner.classList.remove('hidden');
+                } else if (d.status === 'downloading') {
+                    text.textContent = 'جارٍ تنزيل التحديث...';
+                    actionBtn.disabled = true;
+                    actionBtn.textContent = 'يُنزّل...';
+                    banner.classList.remove('hidden');
+                } else if (d.status === 'downloaded') {
+                    text.textContent = 'التحديث جاهز للتثبيت' + (d.version ? ' (الإصدار ' + d.version + ')' : '');
+                    actionBtn.textContent = 'أعد التشغيل وثبّت';
+                    actionBtn.disabled = false;
+                    banner.classList.remove('hidden');
+                } else {
+                    banner.classList.add('hidden');
+                }
+            } catch (e) { /* تجاهل (غالباً لا نت أو بيئة ويب) */ }
+        }
+        async function handleUpdateAction() {
+            const route = updateStatus === 'downloaded' ? '{{ route('update.install') }}' : '{{ route('update.download') }}';
+            try {
+                const r = await fetch(route, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '',
+                        'Accept': 'application/json',
+                    },
+                });
+                const d = await r.json();
+                if (window.syncNotify) syncNotify(d.success, d.message || '');
+                checkUpdateStatus();
+            } catch (e) {
+                if (window.syncNotify) syncNotify(false, 'تعذّر تنفيذ التحديث');
+            }
+        }
+        window.handleUpdateAction = handleUpdateAction;
+        checkUpdateStatus();
+        setInterval(checkUpdateStatus, 60000); // فحص حالة التحديث كل دقيقة
+        @endif
     </script>
 
     @yield('scripts')

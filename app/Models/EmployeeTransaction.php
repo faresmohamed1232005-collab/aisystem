@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class EmployeeTransaction extends Model
 {
+    use Syncable;
+
     protected $fillable = [
         'employee_id', 'user_id', 'type',
         'amount', 'absence_days', 'month', 'year',

@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 
 class UserDrugInventory extends Model
 {
+    use Syncable;
+
     protected $table = 'user_drug_inventory'; // ✅ أضف السطر ده
 
     protected $fillable = [

@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\Syncable;
 
 class Expense extends Model
 {
+    use Syncable;
+
     use HasFactory;
 
     protected $fillable = [
