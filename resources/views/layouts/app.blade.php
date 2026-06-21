@@ -421,6 +421,16 @@
                         </div>
                     @endif
 
+                    {{-- زر تحميل تطبيق سطح المكتب: في المتصفح فقط (ليس داخل تطبيق الديسكتوب نفسه) --}}
+                    @if (config('sync.desktop_download_url') && ! config('nativephp-internal.running'))
+                        <a href="{{ config('sync.desktop_download_url') }}" target="_blank" rel="noopener"
+                            title="حمّل تطبيق سطح المكتب (يعمل بدون إنترنت)"
+                            class="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 h-9 rounded-lg text-sm font-semibold transition">
+                            <i class="fas fa-desktop"></i>
+                            <span class="hidden md:inline">تطبيق سطح المكتب</span>
+                        </a>
+                    @endif
+
                     @if (config('sync.enabled'))
                         {{-- زر المزامنة اليدوي مع السيرفر --}}
                         <button id="sync-btn" onclick="runSync()" title="مزامنة مع السيرفر"
