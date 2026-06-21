@@ -16,12 +16,25 @@ class PurchaseImportController extends Controller
         return view('purchases.import');
     }
 
-    /* استخراج بيانات الفاتورة من الصورة عبر OpenAI Vision */
+    /* استخراج بيانات الفاتورة من الصورة عبر OpenAI Vision
+       يستقبل إما صورة واحدة (image) أو عدة شرائح متراكبة (images[]) من نفس الفاتورة */
     public function extract(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,jpg,png,webp|max:8192',
+            'image'     => 'sometimes|image|mimes:jpeg,jpg,png,webp|max:8192',
+            'images'    => 'sometimes|array|min:1|max:12',
+            'images.*'  => 'image|mimes:jpeg,jpg,png,webp|max:8192',
         ]);
+
+        // اجمع الصور: قد تكون شريحة واحدة أو شرائح متراكبة
+        $files = $request->file('images');
+        if (empty($files)) {
+            $single = $request->file('image');
+            $files  = $single ? [$single] : [];
+        }
+        if (empty($files)) {
+            return response()->json(['success' => false, 'message' => 'لم يتم رفع أي صورة.'], 422);
+        }
 
         $apiKey = config('services.openai.key');
         if (empty($apiKey)) {
@@ -32,13 +45,24 @@ class PurchaseImportController extends Controller
         }
 
         try {
-            $file   = $request->file('image');
-            $base64 = base64_encode(file_get_contents($file->getRealPath()));
-            $mime   = $file->getMimeType() ?: 'image/jpeg';
-            $dataUrl = "data:{$mime};base64,{$base64}";
+            // حوّل كل شريحة إلى data URL
+            $imageContents = [];
+            foreach ($files as $file) {
+                $base64  = base64_encode(file_get_contents($file->getRealPath()));
+                $mime    = $file->getMimeType() ?: 'image/jpeg';
+                $dataUrl = "data:{$mime};base64,{$base64}";
+                $imageContents[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl, 'detail' => 'high']];
+            }
+            $sliceCount = count($imageContents);
 
-            $prompt = <<<'PROMPT'
-أنت خبير في قراءة فواتير شراء الأدوية المصرية. اقرأ صورة الفاتورة واستخرج كل البيانات بدقة شديدة.
+            $sliceNote = $sliceCount > 1
+                ? "ملاحظة مهمة: الصور المرفقة ({$sliceCount} صور) هي شرائح أفقية متتالية ومتراكبة من فاتورة واحدة، مرتبة من أعلى الفاتورة إلى أسفلها. الشرائح متداخلة عمداً (الجزء السفلي من كل شريحة يظهر في أعلى الشريحة التالية) لضمان عدم قص أي صف. ادمج كل الشرائح كأنها فاتورة واحدة، واقرأ كل صنف مرة واحدة فقط — لا تكرّر الصنف الذي يظهر في منطقة التراكب بين شريحتين."
+                : "الصورة المرفقة هي فاتورة كاملة.";
+
+            $prompt = <<<PROMPT
+أنت خبير في قراءة فواتير شراء الأدوية المصرية. اقرأ الصورة/الصور بدقة حرفية شديدة واستخرج كل البيانات.
+
+{$sliceNote}
 
 أعد JSON فقط بالشكل التالي (بدون أي شرح):
 {
@@ -46,12 +70,14 @@ class PurchaseImportController extends Controller
   "invoice_number": "رقم الفاتورة أو null",
   "invoice_date": "تاريخ الفاتورة بصيغة YYYY-MM-DD أو null",
   "invoice_total": صافي إجمالي الفاتورة المطبوع في الأسفل (رقم) أو null,
+  "items_count": العدد الكلي لأسطر الأصناف التي رأيتها فعلياً في الفاتورة (رقم صحيح),
   "items": [
     {
-      "name": "اسم الصنف/الدواء كاملاً كما هو مكتوب",
+      "name": "اسم الصنف/الدواء حرفياً كما هو مكتوب تماماً في الفاتورة",
       "quantity": رقم الكمية,
       "price": سعر الوحدة المطبوع في عمود السعر (سعر الجمهور),
       "discount_percent": نسبة الخصم في عمود الخصم كرقم (مثال 34 وليس 0.34) أو 0,
+      "line_total": إجمالي قيمة هذا السطر المطبوع في عمود الإجمالي/القيمة إن وُجد (رقم) أو null,
       "expiry_date": "تاريخ الصلاحية بصيغة YYYY-MM-DD أو null",
       "batch": "رقم التشغيلة إن وُجد أو null"
     }
@@ -59,9 +85,11 @@ class PurchaseImportController extends Controller
 }
 
 قواعد صارمة:
-- بعض الفواتير مقسّمة إلى عمودين جنب بعض (يمين ويسار) — اقرأ الصنفين معاً كل صف في قائمة items منفصلة.
-- لا تكرّر أي صنف. كل سطر فعلي في الفاتورة = عنصر واحد فقط في items. ممنوع تكرار نفس الصنف بنفس البيانات.
-- إذا لم تستطع قراءة اسم صنف بوضوح اكتب أفضل تخمين، لكن لا تخترع أصنافاً غير موجودة ولا تملأ القائمة بتكرار.
+- الاسم: انسخه حرفياً بنفس الكلمات والترتيب والأرقام كما هو مطبوع في الفاتورة (مثال: "أوجمنتين 1جم 14 قرص"). لا تترجمه ولا تختصره ولا تصححه ولا تضف من عندك. إن كان الخط غير واضح اكتب أقرب قراءة ممكنة فقط.
+- بعض الفواتير مقسّمة إلى عمودين جنب بعض (يمين ويسار) — اقرأ كل صنف في صف منفصل في قائمة items.
+- لا تكرّر أي صنف. كل سطر فعلي في الفاتورة = عنصر واحد فقط في items. ممنوع تكرار نفس الصنف.
+- items_count = عدد الأسطر الحقيقي في الفاتورة. يجب أن يساوي طول قائمة items. تأكد أنك لم تنسَ أي سطر ولم تكرّر أي سطر.
+- line_total: إن كان للفاتورة عمود "الإجمالي" أو "القيمة" لكل سطر، انسخ الرقم المطبوع كما هو. إن لم يوجد عمود إجمالي للسطر اجعله null.
 - عمود "السعر" هو سعر الوحدة (سعر الجمهور) وليس الإجمالي.
 - discount_percent رقم النسبة المئوية كما هو (لو مكتوب 34 رجّع 34).
 - إذا كان تاريخ الصلاحية شهر/سنة فقط (مثل 02/2029) اجعله أول يوم في الشهر 2029-02-01.
@@ -76,14 +104,14 @@ PROMPT;
             ])->timeout(180)->post('https://api.openai.com/v1/chat/completions', [
                 'model'           => 'gpt-4o',
                 'temperature'     => 0,
-                'max_tokens'      => 12000,
+                'max_tokens'      => 16000,
                 'response_format' => ['type' => 'json_object'],
                 'messages'        => [[
                     'role'    => 'user',
-                    'content' => [
-                        ['type' => 'text', 'text' => $prompt],
-                        ['type' => 'image_url', 'image_url' => ['url' => $dataUrl, 'detail' => 'high']],
-                    ],
+                    'content' => array_merge(
+                        [['type' => 'text', 'text' => $prompt]],
+                        $imageContents
+                    ),
                 ]],
             ]);
 
@@ -104,9 +132,12 @@ PROMPT;
                 return response()->json(['success' => false, 'message' => $msg], 422);
             }
 
+            // إزالة الصفوف المكررة الناتجة عن مناطق التراكب بين الشرائح
+            $rawItems = $this->dedupeRows($data['items']);
+
             // تطبيع البيانات وحساب سعر الشراء من الخصم
             $items = [];
-            foreach ($data['items'] as $row) {
+            foreach ($rawItems as $row) {
                 $name = trim($row['name'] ?? '');
                 if ($name === '') {
                     continue;
@@ -119,6 +150,11 @@ PROMPT;
                 // سعر الشراء = السعر بعد الخصم
                 $purchase = round($price * (1 - $discount / 100), 2);
 
+                // الإجمالي المطبوع للسطر (لو الموديل قراه) — للتحقق
+                $printedLine = isset($row['line_total']) && $row['line_total'] !== null
+                    ? $this->num($row['line_total'])
+                    : null;
+
                 // مطابقة الصنف مع كتالوج الأدوية في السيستم
                 $match = $this->matchDrug($name);
 
@@ -129,6 +165,7 @@ PROMPT;
                     'discount'       => $discount,
                     'purchase_price' => $purchase,
                     'line_total'     => round($purchase * $qty, 2),  // إجمالي تكلفة الصنف (محسوب)
+                    'printed_line'   => $printedLine ?: null,        // إجمالي السطر المطبوع في الفاتورة (للتحقق)
                     'expiry'         => $this->date($row['expiry_date'] ?? null),
                     'batch'          => $row['batch'] ?? null,
                     'match'          => $match['drug'],              // الصنف المقترح من السيستم أو null
@@ -138,6 +175,8 @@ PROMPT;
 
             $computedTotal = round(array_sum(array_column($items, 'line_total')), 2);
             $printedTotal  = isset($data['invoice_total']) ? $this->num($data['invoice_total']) : null;
+            // العدد الذي قال الموديل إنه رآه في الفاتورة (للتحقق من اكتمال القراءة)
+            $reportedCount = isset($data['items_count']) ? (int) $this->num($data['items_count']) : null;
 
             return response()->json([
                 'success'  => true,
@@ -147,6 +186,9 @@ PROMPT;
                     'date'           => $this->date($data['invoice_date'] ?? null),
                     'printed_total'  => $printedTotal ?: null,   // إجمالي الفاتورة المطبوع (للمقارنة)
                     'computed_total' => $computedTotal,          // مجموع تكلفة الأصناف المحسوب
+                    'reported_count' => $reportedCount,          // عدد الأصناف الذي رآه الموديل
+                    'extracted_count'=> count($items),           // عدد الأصناف المستخرجة فعلياً
+                    'slices'         => $sliceCount,             // عدد الشرائح المرسلة
                 ],
                 'items'    => $items,
             ]);
@@ -155,6 +197,29 @@ PROMPT;
             Log::error('Invoice import failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['success' => false, 'message' => 'خطأ غير متوقع: ' . $e->getMessage()], 500);
         }
+    }
+
+    /* إزالة الصفوف المكررة الناتجة عن تراكب الشرائح
+       (نفس الاسم المطبّع + نفس الكمية تقريباً + نفس السعر تقريباً = صف مكرر) */
+    private function dedupeRows(array $rows): array
+    {
+        $seen = [];
+        $out  = [];
+        foreach ($rows as $row) {
+            $name = trim($row['name'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $key = $this->normalizeName($name)
+                . '|' . $this->num($row['quantity'] ?? 0)
+                . '|' . $this->num($row['price'] ?? 0);
+            if (isset($seen[$key])) {
+                continue; // صف مكرر من منطقة التراكب
+            }
+            $seen[$key] = true;
+            $out[] = $row;
+        }
+        return $out;
     }
 
     /* كلمات وصفية تُتجاهل عند المطابقة */

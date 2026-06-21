@@ -66,6 +66,8 @@
                 <p class="text-xs text-gray-400 mb-3">
                     سعر الشراء يُحسب تلقائياً = سعر البيع × (1 − الخصم٪) ويمكنك تعديله. الإجماليات تُحسب من القيم المراجَعة.
                 </p>
+                {{-- تنبيه عدد الأصناف: لو ما قرأه الموديل ≠ المستخرج فعلياً --}}
+                <div id="count-warn" class="hidden text-xs rounded-lg p-2.5 mb-3 leading-relaxed"></div>
                 <div id="items-body" class="space-y-3"></div>
             </div>
 
@@ -185,7 +187,8 @@
         let selectedPayment = 'cash';
         let supplierTimer = null;
         let pickedFile = null;
-        let printedTotal = null; // إجمالي الفاتورة المطبوع (من الصورة) للمقارنة
+        let printedTotal = null;  // إجمالي الفاتورة المطبوع (من الصورة) للمقارنة
+        let reportedCount = null; // عدد الأصناف الذي رآه الموديل في الفاتورة (للتحقق من اكتمال القراءة)
 
         /* ============ Toast بسيط ============ */
         function showToast(type, title, msg) {
@@ -235,15 +238,84 @@
             document.getElementById('extract-btn').disabled = false;
         }
 
+        /* ============ تقطيع الصورة لشرائح متراكبة (لدقة أعلى) ============ */
+        // نحمّل الصورة، ولو كانت طويلة نقسّمها شرائح أفقية متداخلة عشان التفاصيل تبقى أوضح للموديل.
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        function canvasToBlob(canvas) {
+            return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+        }
+
+        // ترجع مصفوفة Blobs (شريحة واحدة لو الصورة قصيرة، أو عدة شرائح متراكبة)
+        async function sliceImage(file) {
+            const img = await loadImage(file);
+            let w = img.naturalWidth, h = img.naturalHeight;
+
+            // ارفع دقة الصور الصغيرة عشان الخط يبان (نطمح لعرض ~1600px على الأقل)
+            const MIN_W = 1600;
+            let scale = w < MIN_W ? Math.min(2, MIN_W / w) : 1;
+            const sw = Math.round(w * scale), sh = Math.round(h * scale);
+
+            // لو الصورة مش طويلة → شريحة واحدة (بعد رفع الدقة)
+            const SLICE_H = 1100;          // ارتفاع الشريحة المستهدف بعد التحجيم
+            const OVERLAP = 0.16;          // نسبة التراكب بين الشرائح (~16%)
+            if (sh <= SLICE_H * 1.4) {
+                const c = document.createElement('canvas');
+                c.width = sw; c.height = sh;
+                c.getContext('2d').drawImage(img, 0, 0, sw, sh);
+                return [await canvasToBlob(c)];
+            }
+
+            // قسّم لشرائح متراكبة
+            const step = Math.round(SLICE_H * (1 - OVERLAP));
+            const blobs = [];
+            for (let y = 0; y < sh; y += step) {
+                const sliceH = Math.min(SLICE_H, sh - y);
+                if (sliceH < SLICE_H * 0.25 && blobs.length) break; // بقايا صغيرة جداً
+                const c = document.createElement('canvas');
+                c.width = sw; c.height = sliceH;
+                // ارسم الجزء المقابل من الصورة الأصلية (نحوّل الإحداثيات للمقياس الأصلي)
+                c.getContext('2d').drawImage(
+                    img,
+                    0, y / scale, w, sliceH / scale,   // المصدر (إحداثيات أصلية)
+                    0, 0, sw, sliceH                    // الوجهة
+                );
+                blobs.push(await canvasToBlob(c));
+                if (y + sliceH >= sh) break;
+            }
+            return blobs;
+        }
+
         /* ============ قراءة الفاتورة ============ */
         async function extractInvoice() {
             if (!pickedFile) return;
             const btn = document.getElementById('extract-btn');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري القراءة...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تجهيز الصورة...';
 
             const fd = new FormData();
-            fd.append('image', pickedFile);
+            try {
+                const slices = await sliceImage(pickedFile);
+                if (slices.length > 1) {
+                    slices.forEach((b, idx) => fd.append('images[]', b, `slice-${idx}.jpg`));
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري قراءة ${slices.length} أجزاء...`;
+                } else {
+                    fd.append('image', slices[0], 'invoice.jpg');
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري القراءة...';
+                }
+            } catch (e) {
+                // فشل التقطيع لأي سبب → ابعت الصورة الأصلية كما هي
+                console.warn('slice failed, sending original', e);
+                fd.append('image', pickedFile);
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري القراءة...';
+            }
 
             try {
                 const res = await fetch('{{ route('purchases.import.extract') }}', {
@@ -270,6 +342,7 @@
                         selling_price: +it.selling_price || 0,
                         discount: +it.discount || 0,
                         purchase_price: +it.purchase_price || 0,
+                        printed_line: it.printed_line != null ? +it.printed_line : null, // إجمالي السطر المطبوع (للتحقق)
                         expiry: it.expiry || '',
                         batch: it.batch || '',
                         _results: null,                                // نتائج بحث الربط لكل صف
@@ -278,6 +351,7 @@
                 if (data.invoice?.number) document.getElementById('invoice-number').value = data.invoice.number;
                 if (data.invoice?.date) document.getElementById('invoice-date').value = data.invoice.date;
                 printedTotal = data.invoice?.printed_total || null;
+                reportedCount = data.invoice?.reported_count ?? null;   // عدد الأصناف الذي رآه الموديل
 
                 // تلميح المورد + بحث تلقائي
                 if (data.supplier) {
@@ -310,6 +384,8 @@
             body.innerHTML = items.map((it, i) => {
                 const missing = !it.expiry;
                 const lineTotal = (it.purchase_price * it.quantity) || 0;
+                // تحقق: هل الإجمالي المطبوع للسطر يطابق (سعر البيع × الكمية)؟ (الإجمالي عادةً قبل الخصم)
+                const lineMismatch = lineTotalMismatch(it);
 
                 // ----- خلية الربط بالسيستم -----
                 let systemCell;
@@ -373,7 +449,10 @@
                             <input id="pp-${i}" type="number" min="0" step="any" value="${it.purchase_price}" oninput="upd(${i},'purchase_price',this.value)"
                                 class="w-full border border-emerald-300 bg-emerald-50 rounded-lg px-2 py-1.5 text-center text-xs font-bold text-emerald-700"></div>
                         <div><label class="block text-[11px] text-gray-500 mb-1">إجمالي الصنف</label>
-                            <div id="lt-${i}" class="px-2 py-1.5 text-center text-xs font-bold text-gray-700 bg-gray-100 rounded-lg">${lineTotal.toFixed(2)} ج.م</div></div>
+                            <div id="lt-${i}" class="px-2 py-1.5 text-center text-xs font-bold text-gray-700 bg-gray-100 rounded-lg">${lineTotal.toFixed(2)} ج.م</div>
+                            <div id="lw-${i}" class="${lineMismatch ? '' : 'hidden'} text-[10px] text-amber-600 mt-1 text-center leading-tight" title="الإجمالي المطبوع في الفاتورة يختلف عن المحسوب">
+                                <i class="fas fa-exclamation-triangle"></i> مطبوع: ${it.printed_line != null ? it.printed_line.toFixed(2) : '—'}
+                            </div></div>
                         <div><label class="block text-[11px] ${missing ? 'text-red-500' : 'text-gray-500'} mb-1">الصلاحية${missing ? ' *' : ''}</label>
                             <input type="date" value="${it.expiry}" oninput="upd(${i},'expiry',this.value)"
                                 class="w-full border ${missing ? 'border-red-300' : 'border-gray-200'} rounded-lg px-2 py-1.5 text-xs"></div>
@@ -386,6 +465,7 @@
                 </div>`;
             }).join('');
             document.getElementById('items-count').textContent = items.length + ' صنف';
+            renderCountWarn();
             calcTotal();
         }
 
@@ -402,6 +482,9 @@
                 // حدّث إجمالي الصنف بدون إعادة رسم (حفاظاً على التركيز)
                 const lt = document.getElementById('lt-' + i);
                 if (lt) lt.textContent = (it.purchase_price * it.quantity).toFixed(2) + ' ج.م';
+                // حدّث تحذير مطابقة إجمالي السطر
+                const lw = document.getElementById('lw-' + i);
+                if (lw) lw.classList.toggle('hidden', !lineTotalMismatch(it));
                 calcTotal();
             } else {
                 it[field] = val;
@@ -416,9 +499,35 @@
                 raw_name: '', drug_id: null, system_name: null, barcode: '',
                 major_units: 1, minor_units: 1, suggestion: null,
                 quantity: 1, selling_price: 0, discount: 0, purchase_price: 0,
-                expiry: '', batch: '', _results: null,
+                printed_line: null, expiry: '', batch: '', _results: null,
             });
             renderItems();
+        }
+
+        // هل الإجمالي المطبوع للسطر يخالف المحسوب؟ (نقارن بسعر البيع×الكمية لأن عمود الإجمالي عادةً قبل الخصم)
+        function lineTotalMismatch(it) {
+            if (it.printed_line == null || it.printed_line <= 0) return false;
+            const calcGross = it.selling_price * it.quantity;   // الأرجح أنه يطابق هذا
+            const calcNet = it.purchase_price * it.quantity;    // أو هذا لو الإجمالي بعد الخصم
+            const tol = Math.max(1, it.printed_line * 0.02);    // سماحية 2%
+            return Math.abs(it.printed_line - calcGross) > tol && Math.abs(it.printed_line - calcNet) > tol;
+        }
+
+        // تنبيه عدد الأصناف: قارن ما رآه الموديل بما استُخرج فعلياً
+        function renderCountWarn() {
+            const el = document.getElementById('count-warn');
+            if (!el) return;
+            if (reportedCount == null || reportedCount === items.length) {
+                el.classList.add('hidden');
+                return;
+            }
+            const diff = reportedCount - items.length;
+            el.className = 'text-xs rounded-lg p-2.5 mb-3 leading-relaxed bg-amber-50 text-amber-700 border border-amber-200';
+            el.innerHTML = `<i class="fas fa-exclamation-triangle ml-1"></i> ` +
+                (diff > 0
+                    ? `الذكاء الاصطناعي قدّر <b>${reportedCount}</b> صنف في الفاتورة لكن استُخرج <b>${items.length}</b> فقط — قد تكون هناك أصناف ناقصة، راجع الفاتورة جيداً.`
+                    : `استُخرج <b>${items.length}</b> صنف بينما قدّر الذكاء الاصطناعي <b>${reportedCount}</b> — قد يكون هناك تكرار، راجع القائمة.`);
+            el.classList.remove('hidden');
         }
 
         function calcTotal() {
