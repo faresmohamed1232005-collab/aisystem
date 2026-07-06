@@ -80,6 +80,14 @@ return [
         'sub_users'               => \App\Models\SubUser::class,
         'notifications'           => \App\Models\Notification::class,
         'ads'                     => \App\Models\Ad::class,
+        // سجل الفروع (Phase 2أ) — السيرفر master؛ يُسحب owner-scoped (لا يُدفع).
+        'branches'                => \App\Models\BranchModel::class,
+
+        // التحويلات بين الفروع (Phase 2أ). التحويلات/بنودها ثنائية الاتجاه (الفرع master
+        // عند الإنشاء/التعديل). لقطات المخزون يبنيها السيرفر وتُسحب فقط (read-only للفرع).
+        'stock_transfers'            => \App\Models\StockTransfer::class,
+        'stock_transfer_items'      => \App\Models\StockTransferItem::class,
+        'branch_inventory_snapshots' => \App\Models\BranchInventorySnapshot::class,
 
         // موديول التعاقدات والتأمين (Phase 1). التعاقدات وقواعدها ومرضاها = ماستر
         // تُسحب owner-scoped (السيرفر master). المطالبات = تشغيلية تُدفع من الفرع.
@@ -167,6 +175,10 @@ return [
         // sub_users تُسحب server→branch؛ owner_id يُترجم عبر uuid المستخدم المالك.
         'sub_users'              => ['owner_id' => 'users'],
 
+        // التحويلات: from/to_branch_id نص ثابت (لا ترجمة). نترجم فقط FK الجداول القابلة للمزامنة.
+        'stock_transfer_items'      => ['transfer_id' => 'stock_transfers', 'drug_id' => 'drugs'],
+        'branch_inventory_snapshots' => ['drug_id' => 'drugs'],
+
         // موديول التأمين: ترجمة FK عبر uuid.
         'insurance_rules'        => ['contract_id' => 'contracts'],
         'pricing_rules'          => ['contract_id' => 'contracts'],
@@ -196,6 +208,8 @@ return [
         'drugs',
         'ads',
         'sub_users',
+        // سجل الفروع — ماستر على مستوى المالك (شجرة الفروع، وجهات التحويل).
+        'branches',
         // التعاقدات وقواعدها ومرضاها — ماستر على مستوى المالك، تُسحب owner-scoped.
         // الترتيب: العقد قبل قواعده/مرضاه (ترجمة contract_id عبر uuid).
         'contracts',
@@ -214,6 +228,7 @@ return [
     |
     */
     'pull_owner_scoped' => [
+        'branches',
         'contracts',
         'insurance_rules',
         'pricing_rules',
@@ -234,6 +249,43 @@ return [
     */
     'preserve_id' => [
         'users',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | جداول ثنائية الاتجاه (Bidirectional) — Phase 2أ
+    |--------------------------------------------------------------------------
+    |
+    | الفرع master لها عند الإنشاء/التعديل (يدفعها كـ push)، والسيرفر يخزّنها ويوزّعها
+    | للطرف الآخر (يسحبها الفرع المعني عبر pull_scoped). التحويلات: المصدر ينشئ، الوجهة
+    | تستلم — كلاهما يكتب فيصير الجدول ثنائي الاتجاه لكن مقيّداً بهوية الفرع في الـ pull.
+    |
+    | حارس الـ push على السيرفر = whitelist (push + bidirectional): أي جدول خارجها
+    | يُتجاهل (server-master) — فيُقبل التحويل ويُرفض branches/snapshots/الكتالوج تلقائياً.
+    |
+    */
+    'bidirectional' => [
+        'stock_transfers',
+        'stock_transfer_items',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | جداول pull مقيّدة باستراتيجية حسب هوية الفرع الطالب — Phase 2أ
+    |--------------------------------------------------------------------------
+    |
+    | تُسحب server→branch لكن مفلترة باستراتيجية لكل جدول (بعد keyset pagination):
+    |   - owner_other_branches: user_id=المالك AND snapshot_branch_id != الفرع الطالب.
+    |   - branch_party: التحويلات التي هذا الفرع طرفٌ فيها (from أو to = هو).
+    |   - via_parent: بنود التحويلات المرئية لهذا الفرع (أبناء transfers الظاهرة).
+    |
+    | (branches والتعاقدات تبقى في pull_owner_scoped بفلتر user_id البسيط.)
+    |
+    */
+    'pull_scoped' => [
+        'stock_transfers'            => 'branch_party',
+        'stock_transfer_items'       => 'via_parent',
+        'branch_inventory_snapshots' => 'owner_other_branches',
     ],
 
 ];

@@ -20,7 +20,7 @@ return new class extends Migration
     /** أعمدة المزامنة الموحّدة على كل جدول جديد. */
     private function syncColumns(Blueprint $table): void
     {
-        $table->ulid('uuid')->nullable()->unique()->after('id');
+        $table->ulid('uuid')->nullable()->unique();
         $table->string('branch_id', 40)->nullable()->index();
         $table->timestamp('synced_at')->nullable();
         $table->softDeletes();

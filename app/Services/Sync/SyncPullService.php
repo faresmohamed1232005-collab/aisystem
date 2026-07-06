@@ -38,7 +38,8 @@ class SyncPullService
             return ['success' => false, 'pulled' => 0, 'message' => 'إعدادات المزامنة ناقصة (server_url / token).'];
         }
 
-        $pullable    = config('sync.pull', []);
+        // ما يسحبه الفرع = pull (الكتالوج/الماستر) + pull_scoped (التحويلات/اللقطات).
+        $pullable    = array_merge(config('sync.pull', []), array_keys(config('sync.pull_scoped', [])));
         $totalPulled = 0;
         $detail      = [];
 

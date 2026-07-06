@@ -127,6 +127,7 @@ PROMPT;
         try {
             $summary = DB::table('user_drug_inventory as inv')
                 ->where('inv.user_id', $userId)
+                ->where('inv.branch_id', \App\Support\Branch::id())
                 ->selectRaw('
                     COUNT(*) as total_items,
                     SUM(CASE WHEN inv.quantity > 0 THEN 1 ELSE 0 END) as in_stock,
@@ -156,7 +157,8 @@ PROMPT;
             $products = DB::table('drugs')
                 ->join('user_drug_inventory as inv', function ($j) use ($userId) {
                     $j->on('inv.drug_id', '=', 'drugs.id')
-                      ->where('inv.user_id', '=', $userId);
+                      ->where('inv.user_id', '=', $userId)
+                      ->where('inv.branch_id', '=', \App\Support\Branch::id());
                 })
                 ->where('inv.quantity', '>', 0)
                 ->select(
@@ -264,6 +266,7 @@ PROMPT;
                         // قارن مع مخزون المستخدم
                         $myStockIds = DB::table('user_drug_inventory')
                             ->where('user_id', $userId)
+                            ->where('branch_id', \App\Support\Branch::id())
                             ->where('quantity', '>', 0)
                             ->pluck('drug_id')
                             ->toArray();
@@ -295,7 +298,8 @@ PROMPT;
             $lowStock = DB::table('drugs')
                 ->join('user_drug_inventory as inv', function ($j) use ($userId) {
                     $j->on('inv.drug_id', '=', 'drugs.id')
-                      ->where('inv.user_id', '=', $userId);
+                      ->where('inv.user_id', '=', $userId)
+                      ->where('inv.branch_id', '=', \App\Support\Branch::id());
                 })
                 ->whereRaw('inv.quantity > 0 AND inv.quantity <= COALESCE(inv.min_quantity, 5)')
                 ->select(
@@ -326,7 +330,8 @@ PROMPT;
             $expiring = DB::table('drugs')
                 ->join('user_drug_inventory as inv', function ($j) use ($userId) {
                     $j->on('inv.drug_id', '=', 'drugs.id')
-                      ->where('inv.user_id', '=', $userId);
+                      ->where('inv.user_id', '=', $userId)
+                      ->where('inv.branch_id', '=', \App\Support\Branch::id());
                 })
                 ->whereNotNull('inv.expiry_date')
                 ->whereDate('inv.expiry_date', '>=', Carbon::today())

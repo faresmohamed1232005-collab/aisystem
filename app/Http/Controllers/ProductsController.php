@@ -50,6 +50,7 @@ class ProductsController extends Controller
                 DB::raw("MAX(COALESCE(piece_unit_name, 'حبة'))     as piece_unit_name"),
             )
             ->where('user_id', $userId)
+            ->where('branch_id', \App\Support\Branch::id())
             ->where('quantity', '>', 0)          // ← باتشات فاضية تتجاهل
             ->groupBy('drug_id');
     }
@@ -121,8 +122,8 @@ class ProductsController extends Controller
 
         $stats = [
             'total_drugs'    => Drug::count(),
-            'total_in_stock' => UserDrugInventory::where('user_id', $userId)->where('quantity', '>', 0)->count(),
-            'low_stock'      => UserDrugInventory::where('user_id', $userId)
+            'total_in_stock' => UserDrugInventory::where('user_id', $userId)->currentBranch()->where('quantity', '>', 0)->count(),
+            'low_stock'      => UserDrugInventory::where('user_id', $userId)->currentBranch()
                                     ->whereRaw('quantity > 0 AND quantity <= min_quantity')->count(),
         ];
 
@@ -287,10 +288,11 @@ class ProductsController extends Controller
         if ($request->filled('strip_unit_name')) $data['strip_unit_name'] = $request->strip_unit_name;
         if ($request->filled('piece_unit_name')) $data['piece_unit_name'] = $request->piece_unit_name;
 
-        // updateInventory بيحدث أو ينشئ على أساس (user_id + drug_id + expiry_date)
+        // updateInventory بيحدث أو ينشئ على أساس (user_id + branch_id + drug_id + expiry_date)
         UserDrugInventory::updateOrCreate(
             [
                 'user_id'     => Auth::id(),
+                'branch_id'   => \App\Support\Branch::id(),
                 'drug_id'     => $drug->id,
                 'expiry_date' => $request->expiry_date ?? null,
             ],
@@ -311,6 +313,7 @@ class ProductsController extends Controller
         UserDrugInventory::updateOrCreate(
             [
                 'user_id'     => Auth::id(),
+                'branch_id'   => \App\Support\Branch::id(),
                 'drug_id'     => $request->drug_id,
                 'expiry_date' => $request->expiry_date ?? null,
             ],

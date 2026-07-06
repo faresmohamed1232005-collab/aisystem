@@ -253,7 +253,7 @@ class PurchaseReturnController extends Controller
                     ];
 
                     if ($drugId) {
-                        $inv = UserDrugInventory::where('user_id', $userId)->where('drug_id', $drugId)->lockForUpdate()->first();
+                        $inv = UserDrugInventory::where('user_id', $userId)->currentBranch()->where('drug_id', $drugId)->lockForUpdate()->first();
                         if ($inv) {
                             $inv->update(['quantity' => max(0, $inv->quantity - $returnedBoxes)]);
                             Log::info("✅ مرتجع شراء: -{$returnedBoxes} من drug_id={$drugId} ({$ri['quantity']} {$returnUnitName})");
@@ -383,6 +383,7 @@ class PurchaseReturnController extends Controller
                 foreach ($purchaseReturn->items as $item) {
                     if (!$item->drug_id) continue;
                     $inv = UserDrugInventory::where('user_id', $userId)
+                        ->currentBranch()
                         ->where('drug_id', $item->drug_id)->lockForUpdate()->first();
                     if ($inv) $inv->increment('quantity', $item->quantity);
                 }

@@ -71,6 +71,7 @@ class PendingOrderController extends Controller
                     $drug = Drug::findOrFail($item['id']);
 
                     $inv = UserDrugInventory::where('user_id', $userId)
+                        ->currentBranch()
                         ->where('drug_id', $drug->id)
                         ->firstOrFail();
 
@@ -186,6 +187,7 @@ class PendingOrderController extends Controller
                     $drug = Drug::lockForUpdate()->findOrFail($item->drug_id);
 
                     $inv = UserDrugInventory::where('user_id', Auth::id())
+                        ->currentBranch()
                         ->where('drug_id', $drug->id)
                         ->lockForUpdate()
                         ->firstOrFail();

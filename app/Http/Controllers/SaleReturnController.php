@@ -309,6 +309,7 @@ class SaleReturnController extends Controller
                     // ✅ زيادة المخزن بالكمية الفعلية بالعلبة
                     if ($saleItem->drug_id) {
                         $inv = UserDrugInventory::where('user_id', $userId)
+                            ->currentBranch()
                             ->where('drug_id', $saleItem->drug_id)
                             ->lockForUpdate()
                             ->first();
@@ -318,9 +319,10 @@ class SaleReturnController extends Controller
                             Log::info("✅ مرتجع بيع: +{$returnedBoxes} علبة لـ drug_id={$saleItem->drug_id} ({$ri['quantity']} {$returnUnitName})");
                         } else {
                             UserDrugInventory::create([
-                                'user_id'  => $userId,
-                                'drug_id'  => $saleItem->drug_id,
-                                'quantity' => $returnedBoxes,
+                                'user_id'   => $userId,
+                                'branch_id' => \App\Support\Branch::id(),
+                                'drug_id'   => $saleItem->drug_id,
+                                'quantity'  => $returnedBoxes,
                             ]);
                         }
                     }
@@ -393,6 +395,7 @@ class SaleReturnController extends Controller
                     $boxesToRemove = $item->quantity * $qtyFactor;
 
                     $inv = UserDrugInventory::where('user_id', $userId)
+                        ->currentBranch()
                         ->where('drug_id', $item->drug_id)
                         ->lockForUpdate()
                         ->first();

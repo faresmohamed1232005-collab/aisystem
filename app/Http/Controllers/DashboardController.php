@@ -20,14 +20,16 @@ class DashboardController extends Controller
         $userId = $user->id;
 
         // ========== الإحصائيات الأساسية ==========
-        $totalProducts = UserDrugInventory::where('user_id', $userId)->count();
+        $totalProducts = UserDrugInventory::where('user_id', $userId)->currentBranch()->count();
 
         $lowStock = UserDrugInventory::where('user_id', $userId)
+            ->currentBranch()
             ->where('quantity', '>', 0)
             ->whereRaw('quantity <= min_quantity')
             ->count();
 
         $expiringSoon = UserDrugInventory::where('user_id', $userId)
+            ->currentBranch()
             ->whereDate('expiry_date', '<=', now()->addDays(30))
             ->whereDate('expiry_date', '>=', today())
             ->count();
@@ -187,6 +189,7 @@ class DashboardController extends Controller
     {
         // منتجات قاربت الانتهاء
         $expiring = UserDrugInventory::where('user_id', $userId)
+            ->currentBranch()
             ->whereDate('expiry_date', '<=', now()->addDays(30))
             ->whereDate('expiry_date', '>=', today())
             ->with('drug')
@@ -205,6 +208,7 @@ class DashboardController extends Controller
 
         // مخزون منخفض
         $lowStockItems = UserDrugInventory::where('user_id', $userId)
+            ->currentBranch()
             ->where('quantity', '>', 0)
             ->whereRaw('quantity <= min_quantity')
             ->with('drug')

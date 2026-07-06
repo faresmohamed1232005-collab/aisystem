@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Syncable;
+use App\Support\Branch;
 
 
 class UserDrugInventory extends Model
@@ -12,14 +13,29 @@ class UserDrugInventory extends Model
 
     protected $table = 'user_drug_inventory'; // ✅ أضف السطر ده
 
+    /**
+     * نطاق: مخزون الفرع الحالي فقط (branch_id = هوية هذا التثبيت).
+     *
+     * Phase 2أ: المخزون بقى مقسّماً بـ branch_id. على الفرع (جهاز واحد) كل الصفوف
+     * لنفس الفرع فالفلتر دفاعي؛ على السيرفر يمنع تسرّب مخزون فرع لعمليات فرع آخر.
+     */
+    public function scopeCurrentBranch($query)
+    {
+        return $query->where($this->getTable() . '.branch_id', Branch::id());
+    }
+
     protected $fillable = [
         'user_id',
+        'branch_id',
         'drug_id',
         'quantity',
         'min_quantity',
         'custom_price',
         'cost_price',
         'expiry_date',
+        'strip_unit_name',
+        'piece_unit_name',
+        'notes',
     ];
 
     protected $casts = [

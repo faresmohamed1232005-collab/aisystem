@@ -203,6 +203,7 @@ class PurchaseInvoiceController extends Controller
 
                     $inventory = UserDrugInventory::firstOrNew([
                         'user_id'     => Auth::id(),
+                        'branch_id'   => \App\Support\Branch::id(),
                         'drug_id'     => $drug->id,
                         'expiry_date' => $expiryDate,
                     ]);

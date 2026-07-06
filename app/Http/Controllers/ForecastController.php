@@ -43,6 +43,7 @@ class ForecastController extends Controller
 
             // إجمالي المخزون الحالي عبر كل الباتشات (بوحدة العلبة)
             $currentStock = UserDrugInventory::where('user_id', $userId)
+                ->currentBranch()
                 ->where('drug_id', $product->drug_id)
                 ->where('quantity', '>', 0)
                 ->sum('quantity');

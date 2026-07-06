@@ -40,18 +40,18 @@ class SyncController extends Controller
         $tables   = $data['tables'];
         $order    = array_keys(config('sync.models', [])); // ترتيب التبعيات الصحيح
 
-        // حماية: السيرفر master للجداول pull-only (الكتالوج/الحسابات: drugs, ads,
-        // users, sub_users). لا نسمح لفرع بالكتابة فوقها عبر push حتى لو أرسلها.
-        $pullOnly = array_diff(config('sync.pull', []), config('sync.push', []));
+        // حماية (whitelist): السيرفر يقبل فقط ما يملكه الفرع = push + bidirectional.
+        // أي جدول خارج القائمة (الكتالوج/الحسابات/الفروع/اللقطات) يُتجاهل — server-master.
+        $writable = array_merge(config('sync.push', []), config('sync.bidirectional', []));
 
         $summary = [];
 
         try {
-            DB::transaction(function () use ($order, $tables, $repo, $pullOnly, &$summary) {
+            DB::transaction(function () use ($order, $tables, $repo, $writable, &$summary) {
                 // نعالج بترتيب التبعيات (الأب قبل الابن) لا بترتيب وصول المفاتيح.
                 foreach ($order as $table) {
-                    if (in_array($table, $pullOnly, true)) {
-                        continue; // pull-only — يُتجاهل عند الـ push (السيرفر master)
+                    if (!in_array($table, $writable, true)) {
+                        continue; // خارج whitelist — يُتجاهل عند الـ push (السيرفر master)
                     }
                     if (empty($tables[$table]) || !is_array($tables[$table])) {
                         continue;
@@ -65,6 +65,15 @@ class SyncController extends Controller
                 'success' => false,
                 'message' => 'فشل تطبيق الدفعة: ' . $e->getMessage(),
             ], 422);
+        }
+
+        // أعد بناء لقطات مخزون هذا الفرع للأدوية المتأثرة (server-maintained) ليراها بقية الفروع.
+        if (! empty($tables['user_drug_inventory']) && is_array($tables['user_drug_inventory'])) {
+            try {
+                $this->rebuildSnapshots($branchId, $tables['user_drug_inventory']);
+            } catch (\Throwable $e) {
+                Log::warning('Snapshot rebuild failed', ['branch' => $branchId, 'error' => $e->getMessage()]);
+            }
         }
 
         $totalAccepted = array_sum(array_column($summary, 'accepted'));
@@ -188,10 +197,13 @@ class SyncController extends Controller
         ]);
         $cursors = $data['cursors'] ?? [];
 
-        $pullable   = config('sync.pull', []);
+        // نسحب الجداول العادية + الجداول ذات الاستراتيجية المقيّدة (Phase 2أ).
+        $pullScoped = config('sync.pull_scoped', []);
+        $pullable   = array_merge(config('sync.pull', []), array_keys($pullScoped));
         $relations  = config('sync.relations', []);
         $preserveId = config('sync.preserve_id', []);
         $limit      = (int) config('sync.batch_size', 200);
+        $me         = $data['branch_id'] ?? null; // الفرع الطالب (لفلاتر pull_scoped)
 
         // حسابات الفرع مُخصَّصة للـ tenant المالك: نحلّ user_id من branch_id.
         $ownerUserId = null;
@@ -226,8 +238,11 @@ class SyncController extends Controller
                 $query->where('id', $ownerUserId ?? -1);
             } elseif ($table === 'sub_users') {
                 $query->where('owner_id', $ownerUserId ?? -1);
+            } elseif (isset($pullScoped[$table])) {
+                // استراتيجيات pull_scoped (التحويلات/اللقطات) — مقيّدة بهوية الفرع الطالب.
+                $this->applyScopedFilter($query, $pullScoped[$table], $ownerUserId, $me);
             } elseif (in_array($table, config('sync.pull_owner_scoped', []), true)) {
-                // بيانات ماستر خاصة بالمالك (تعاقدات/تأمين): تُسحب لفروع نفس المالك فقط.
+                // بيانات ماستر خاصة بالمالك (فروع/تعاقدات/تأمين): تُسحب لفروع نفس المالك فقط.
                 $query->where('user_id', $ownerUserId ?? -1);
             }
 
@@ -270,5 +285,99 @@ class SyncController extends Controller
         }
 
         return response()->json(['success' => true, 'tables' => $out]);
+    }
+
+    /**
+     * فلتر pull_scoped حسب استراتيجية الجدول (Phase 2أ). يقيّد الصفوف المسحوبة بهوية
+     * الفرع الطالب ($me) أو مالكه ($ownerUserId).
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function applyScopedFilter($query, string $strategy, ?int $ownerUserId, ?string $me): void
+    {
+        switch ($strategy) {
+            case 'branch_party':
+                // التحويلات التي هذا الفرع طرفٌ فيها (مصدر أو وجهة).
+                $query->where(function ($w) use ($me) {
+                    $w->where('from_branch_id', $me)->orWhere('to_branch_id', $me);
+                });
+                break;
+
+            case 'via_parent':
+                // بنود التحويلات المرئية لهذا الفرع فقط (أبناء transfers الظاهرة له).
+                $query->whereIn('transfer_id', function ($sub) use ($me) {
+                    $sub->select('id')->from('stock_transfers')
+                        ->where(function ($w) use ($me) {
+                            $w->where('from_branch_id', $me)->orWhere('to_branch_id', $me);
+                        });
+                });
+                break;
+
+            case 'owner_other_branches':
+                // لقطات مخزون الفروع الأخرى لنفس المالك (تستثني الفرع نفسه).
+                $query->where('user_id', $ownerUserId ?? -1)
+                      ->where('snapshot_branch_id', '!=', (string) $me);
+                break;
+        }
+    }
+
+    /**
+     * يعيد بناء لقطات مخزون فرع للأدوية المتأثرة بدفعة الـ push (server-maintained).
+     *
+     * لكل دواء في الدفعة: يجمّع كميته الحالية بهذا الفرع من user_drug_inventory ويحدّث
+     * (أو يُنشئ) صف branch_inventory_snapshots. يُضبط synced_at=null + updated_at=now
+     * حتى تسحبه بقية فروع المالك (pull_scoped: owner_other_branches). branch_id للّقطة
+     * = 'server' (السيرفر منشئها).
+     */
+    private function rebuildSnapshots(string $branchId, array $invRows): void
+    {
+        $ownerUserId = DB::table('branches')->where('branch_id', $branchId)->value('user_id');
+        if (! $ownerUserId) {
+            return; // فرع غير مسجّل — لا مالك نعرفه
+        }
+
+        $drugUuids = array_values(array_unique(array_filter(array_column($invRows, 'drug_id_uuid'))));
+        if (empty($drugUuids)) {
+            return;
+        }
+
+        $drugIdByUuid = DB::table('drugs')->whereIn('uuid', $drugUuids)->pluck('id', 'uuid');
+        $serverBranch = (string) (config('sync.server_branch_id') ?: 'server');
+        $now          = now();
+
+        foreach ($drugIdByUuid as $drugId) {
+            $qty = (float) DB::table('user_drug_inventory')
+                ->where('user_id', $ownerUserId)
+                ->where('branch_id', $branchId)
+                ->where('drug_id', $drugId)
+                ->sum('quantity');
+
+            $existing = DB::table('branch_inventory_snapshots')
+                ->where('user_id', $ownerUserId)
+                ->where('snapshot_branch_id', $branchId)
+                ->where('drug_id', $drugId)
+                ->first();
+
+            if ($existing) {
+                DB::table('branch_inventory_snapshots')->where('id', $existing->id)->update([
+                    'quantity'   => $qty,
+                    'updated_at' => $now,
+                    'synced_at'  => null,
+                    'deleted_at' => null,
+                ]);
+            } else {
+                DB::table('branch_inventory_snapshots')->insert([
+                    'uuid'               => (string) Str::ulid(),
+                    'user_id'            => $ownerUserId,
+                    'snapshot_branch_id' => $branchId,
+                    'drug_id'            => $drugId,
+                    'quantity'           => $qty,
+                    'branch_id'          => $serverBranch,
+                    'created_at'         => $now,
+                    'updated_at'         => $now,
+                    'synced_at'          => null,
+                ]);
+            }
+        }
     }
 }

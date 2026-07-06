@@ -75,6 +75,7 @@ class SaleController extends Controller
                     //    الباتشات اللي مفيهاش تاريخ تيجي آخر
                     // ══════════════════════════════════════════════════════
                     $batches = UserDrugInventory::where('user_id', $userId)
+                        ->currentBranch()
                         ->where('drug_id', $drug->id)
                         ->where('quantity', '>', 0)
                         ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')

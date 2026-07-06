@@ -37,7 +37,8 @@ class SyncPushService
         }
 
         $models    = config('sync.models', []);
-        $pushables = config('sync.push', array_keys($models)); // اتجاه: ما يدفعه الفرع فقط
+        // ما يدفعه الفرع = push + bidirectional (التحويلات). الترتيب: الأب قبل الابن.
+        $pushables = array_merge(config('sync.push', array_keys($models)), config('sync.bidirectional', []));
         $relations = config('sync.relations', []);
         $batchSize = (int) config('sync.batch_size', 200);
 
