@@ -51,6 +51,14 @@ class LoginController extends Controller
             }
 
             if (Auth::attempt([$field => $login, 'password' => $password], $request->boolean('remember'))) {
+                // مصادقة ثنائية مفعّلة → لا نُكمل الدخول قبل التحقق من الكود.
+                if ($user->two_factor_enabled && ! empty($user->two_factor_secret)) {
+                    Auth::logout();
+                    $request->session()->put('2fa:pending', $user->id);
+                    $request->session()->put('2fa:remember', $request->boolean('remember'));
+                    return redirect()->route('login.2fa');
+                }
+
                 $request->session()->regenerate();
                 session()->forget('sub_user');
                 return redirect()->route('dashboard');
@@ -94,6 +102,38 @@ class LoginController extends Controller
         return back()
             ->withErrors(['login' => 'بيانات الدخول غلط، حاول تاني.'])
             ->withInput();
+    }
+
+    /** شاشة إدخال كود المصادقة الثنائية (بين كلمة المرور والدخول الكامل). */
+    public function showTwoFactor(Request $request)
+    {
+        if (! $request->session()->has('2fa:pending')) {
+            return redirect()->route('login');
+        }
+        return view('auth.two-factor');
+    }
+
+    /** تحقّق من كود 2FA وأكمل الدخول. */
+    public function verifyTwoFactor(Request $request)
+    {
+        $request->validate(['code' => 'required|string'], ['code.required' => 'أدخل الكود']);
+
+        $pendingId = $request->session()->get('2fa:pending');
+        if (! $pendingId) {
+            return redirect()->route('login');
+        }
+
+        $user = User::find($pendingId);
+        if (! $user || empty($user->two_factor_secret) || ! \App\Support\Totp::verify($user->two_factor_secret, $request->code)) {
+            return back()->withErrors(['code' => 'كود غير صحيح، حاول مرة أخرى.']);
+        }
+
+        Auth::loginUsingId($user->id, (bool) $request->session()->get('2fa:remember'));
+        $request->session()->forget(['2fa:pending', '2fa:remember']);
+        $request->session()->regenerate();
+        session()->forget('sub_user');
+
+        return redirect()->route('dashboard');
     }
 
     public function logout(Request $request)

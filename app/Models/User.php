@@ -44,6 +44,8 @@ class User extends Authenticatable
         'governorate',
         'city',
         'is_approved',
+        'two_factor_secret',
+        'two_factor_enabled',
     ];
 
     public function products()
@@ -66,6 +68,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
     ];
 
     /**
@@ -78,6 +81,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_enabled' => 'boolean',
         ];
     }
 }

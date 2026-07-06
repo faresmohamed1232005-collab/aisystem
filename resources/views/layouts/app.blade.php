@@ -422,6 +422,14 @@
                     </a>
                     @endcan
                 @endcanany
+
+                @unless($isSubUser)
+                <a href="{{ route('security.index') }}"
+                    class="nav-item {{ request()->routeIs('security.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-lock w-5 text-center"></i> أمان الحساب
+                </a>
+                @endunless
             </nav>
 
             <div class="p-4 border-t border-white/10">

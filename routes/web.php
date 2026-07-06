@@ -39,6 +39,11 @@ Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 Route::post('/setup', [SetupController::class, 'store'])->name('setup.store');
 
 
+// ===== تحدّي المصادقة الثنائية (بين كلمة المرور والدخول) — بلا auth/guest =====
+Route::get('/2fa', [LoginController::class, 'showTwoFactor'])->name('login.2fa');
+Route::post('/2fa', [LoginController::class, 'verifyTwoFactor'])->name('login.2fa.verify');
+
+
 // ===== Guest =====
 Route::middleware('guest')->group(function () {
     Route::get('/', [LoginController::class, 'showForm'])->name('login');
@@ -132,6 +137,12 @@ Route::middleware('auth')->group(function () {
         Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
         Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
     });
+
+    // ===== أمان الحساب (Phase 3C) — المصادقة الثنائية (المالك) =====
+    Route::get('/security', [\App\Http\Controllers\SecurityController::class, 'show'])->name('security.index');
+    Route::post('/security/2fa/enable', [\App\Http\Controllers\SecurityController::class, 'enable'])->name('security.2fa.enable');
+    Route::post('/security/2fa/confirm', [\App\Http\Controllers\SecurityController::class, 'confirm'])->name('security.2fa.confirm');
+    Route::post('/security/2fa/disable', [\App\Http\Controllers\SecurityController::class, 'disable'])->name('security.2fa.disable');
 
     // ===== سجل التدقيق (Phase 3B) — قراءة فقط =====
     Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
