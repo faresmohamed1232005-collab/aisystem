@@ -25,6 +25,9 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\MarketPriceCheckController;
 use App\Http\Controllers\SetupController;
+use App\Http\Controllers\ContractController;
+use App\Http\Controllers\InsuredPatientController;
+use App\Http\Controllers\InsuranceClaimController;
 
 
 
@@ -110,6 +113,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/purchases/import/extract', [PurchaseImportController::class, 'extract'])->name('purchases.import.extract');
 
     Route::get('/purchases/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
+
+    // ===== التأمين والتعاقدات =====
+    // التعاقدات + قواعد التأمين/التسعير
+    Route::post('/contracts/{contract}/insurance-rule', [ContractController::class, 'saveInsuranceRule'])->name('contracts.insurance-rule');
+    Route::post('/contracts/{contract}/pricing-rules', [ContractController::class, 'addPricingRule'])->name('contracts.pricing-rules.store');
+    Route::delete('/contracts/{contract}/pricing-rules/{pricingRule}', [ContractController::class, 'deletePricingRule'])->name('contracts.pricing-rules.destroy');
+    Route::resource('contracts', ContractController::class);
+
+    // المرضى المؤمّن عليهم
+    Route::get('/insured-patients/search', [InsuredPatientController::class, 'search'])->name('insured-patients.search');
+    Route::resource('insured-patients', InsuredPatientController::class)->except(['show']);
+
+    // مطالبات التأمين
+    Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
+    Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
 
 });
 

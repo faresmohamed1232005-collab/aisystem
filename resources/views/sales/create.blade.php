@@ -238,15 +238,21 @@ function createTabState() {
         selectedPayment: 'cash',
         selectedCard: null,
         selectedDelivery: 'store',
+        selectedContract: null,
+        selectedPatient: null,
         discountType: 'amount',
         searchTimer: null,
         customerTimer: null,
+        patientTimer: null,
         lastKeyTime: 0,
         keyIntervals: [],
         _results: [],
         _customers: [],
+        _patients: [],
     };
 }
+
+const INSURANCE_CONTRACTS = @json($insuranceContracts ?? []);
 
 function addTab() {
     const state = createTabState();
@@ -573,6 +579,32 @@ function buildPanelHTML(tid) {
                             class="card-type-btn-${tid} text-xs py-2 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-600 transition font-semibold hover:border-blue-300">
                             <i class="fas fa-wallet block text-base mb-0.5"></i> محفظة
                         </button>
+                    </div>
+                </div>
+
+                <!-- التأمين -->
+                <div id="insurance-section-${tid}" class="hidden space-y-2 bg-purple-50/50 border border-purple-100 rounded-xl p-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">عقد التأمين <span class="text-red-500 font-semibold">*</span></label>
+                        <select id="insurance-contract-${tid}" onchange="onContractChange(${tid})"
+                            class="w-full border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm text-right focus:outline-none focus:border-purple-400">
+                            <option value="">— اختر عقد التأمين —</option>
+                            ${INSURANCE_CONTRACTS.map(c=>`<option value="${c.id}">${c.name} (${c.code})</option>`).join('')}
+                        </select>
+                        ${INSURANCE_CONTRACTS.length===0?`<p class="text-xs text-amber-600 mt-1">لا يوجد عقود تأمين نشطة — <a href="/contracts/create" target="_blank" class="underline">أضف عقداً</a>.</p>`:''}
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">المريض المؤمّن عليه</label>
+                        <div id="selected-patient-${tid}" class="hidden mb-2 bg-purple-100 border border-purple-200 rounded-xl p-2.5 flex items-center justify-between">
+                            <span id="selected-patient-name-${tid}" class="text-sm font-bold text-purple-700"></span>
+                            <button type="button" onclick="clearPatient(${tid})" class="text-gray-400 hover:text-red-500 text-xs p-1"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="patient-search-${tid}" placeholder="ابحث باسم المريض أو رقم البطاقة..." autocomplete="off"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right focus:outline-none focus:border-purple-400"
+                                oninput="searchPatients(${tid},this.value)">
+                            <div id="patient-results-${tid}" class="hidden absolute right-0 left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-20"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -1027,8 +1059,56 @@ function _selectPaymentUI(tid,method) {
     document.getElementById(`card-type-section-${tid}`).classList.toggle('hidden',method!=='card');
     document.getElementById(`deferred-info-${tid}`).classList.toggle('hidden',method!=='deferred');
     document.getElementById(`customer-required-label-${tid}`).classList.toggle('hidden',method!=='deferred');
+    document.getElementById(`insurance-section-${tid}`).classList.toggle('hidden',method!=='insurance');
+    if (method!=='insurance') { clearPatient(tid); const cs=document.getElementById(`insurance-contract-${tid}`); if(cs){cs.value='';} getTab(tid).selectedContract=null; }
     if (method==='deferred') document.getElementById(`paid-${tid}`).value=0;
     calcChange(tid);
+}
+
+/* =====================================================
+   INSURANCE (contract + patient)
+   ===================================================== */
+function onContractChange(tid) {
+    const tab=getTab(tid);
+    const val=document.getElementById(`insurance-contract-${tid}`).value;
+    tab.selectedContract = val ? INSURANCE_CONTRACTS.find(c=>String(c.id)===String(val)) : null;
+    clearPatient(tid); // المريض مرتبط بالعقد
+}
+function searchPatients(tid, q) {
+    const tab=getTab(tid);
+    clearTimeout(tab.patientTimer);
+    const rb=document.getElementById(`patient-results-${tid}`);
+    if (!tab.selectedContract) { rb.innerHTML=`<div class="p-3 text-center text-xs text-amber-600">اختر عقد التأمين أولاً</div>`; rb.classList.remove('hidden'); return; }
+    if (q.length<1) { rb.classList.add('hidden'); return; }
+    tab.patientTimer=setTimeout(async ()=>{
+        try {
+            tab._patients=await (await fetch(`/insured-patients/search?contract_id=${tab.selectedContract.id}&q=${encodeURIComponent(q)}`)).json();
+            if (!tab._patients.length) {
+                rb.innerHTML=`<div class="p-4 text-center"><div class="text-gray-400 text-sm">لا يوجد مرضى</div><a href="/insured-patients/create" target="_blank" class="text-purple-500 text-xs hover:underline mt-1 block">+ إضافة مريض</a></div>`;
+            } else {
+                rb.innerHTML=tab._patients.map((p,pi)=>`
+                    <div onclick="pickPatientByIndex(${tid},${pi})" class="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-50 last:border-0 transition">
+                        <div class="font-semibold text-sm text-gray-800">${p.name}</div>
+                        <div class="text-xs text-gray-400">${p.card_number?('بطاقة: '+p.card_number):''} ${p.membership_number?(' • عضوية: '+p.membership_number):''}</div>
+                    </div>`).join('');
+            }
+            rb.classList.remove('hidden');
+        } catch(e){ rb.classList.add('hidden'); }
+    },250);
+}
+function pickPatientByIndex(tid, pi) {
+    const tab=getTab(tid); const p=tab._patients[pi]; if(!p) return;
+    tab.selectedPatient=p;
+    document.getElementById(`selected-patient-name-${tid}`).textContent=p.name;
+    document.getElementById(`selected-patient-${tid}`).classList.remove('hidden');
+    document.getElementById(`patient-results-${tid}`).classList.add('hidden');
+    document.getElementById(`patient-search-${tid}`).value='';
+}
+function clearPatient(tid) {
+    const tab=getTab(tid); tab.selectedPatient=null;
+    const box=document.getElementById(`selected-patient-${tid}`); if(box) box.classList.add('hidden');
+    const rb=document.getElementById(`patient-results-${tid}`); if(rb) rb.classList.add('hidden');
+    const inp=document.getElementById(`patient-search-${tid}`); if(inp) inp.value='';
 }
 function selectCard(tid, type) {
     getTab(tid).selectedCard=type;
@@ -1146,6 +1226,8 @@ function buildPayload(tid, token) {
         items: tab.cart.map(i=>({ id:i.id, qty:i.qty, qty_factor:i.qtyFactor, unit_key:i.unitKey, unit_name:i.unitName, unit_price:i.price })),
         discount: document.getElementById(`discount-${tid}`).value||0,
         customer_id: tab.selectedCustomer?.id||null,
+        contract_id: tab.selectedPayment==='insurance'?(tab.selectedContract?.id||null):null,
+        insured_patient_id: tab.selectedPayment==='insurance'?(tab.selectedPatient?.id||null):null,
         notes: document.getElementById(`notes-${tid}`).value,
         delivery_type: tab.selectedDelivery,
         delivery_address: document.getElementById(`delivery-address-${tid}`)?.value||null,
@@ -1179,6 +1261,7 @@ async function completeSale(tid) {
     if (!tab.cart.length) { showToast('error','السلة فارغة','أضف منتجات للفاتورة أولاً'); return; }
     if (tab.selectedPayment==='deferred'&&!tab.selectedCustomer) { showToast('error','العميل مطلوب','يجب اختيار عميل للبيع الآجل'); return; }
     if (tab.selectedPayment==='card'&&!tab.selectedCard) { showToast('error','نوع البطاقة مطلوب','يجب اختيار نوع البطاقة'); return; }
+    if (tab.selectedPayment==='insurance'&&!tab.selectedContract) { showToast('error','عقد التأمين مطلوب','يجب اختيار عقد التأمين'); return; }
     if (tab.selectedDelivery==='delivery'&&!document.getElementById(`delivery-address-${tid}`).value.trim()) { showToast('error','العنوان مطلوب','يجب إدخال عنوان التوصيل'); return; }
     const net=parseFloat(document.getElementById(`net-total-${tid}`).textContent)||0;
     const paidEl=document.getElementById(`paid-${tid}`);

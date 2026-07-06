@@ -27,7 +27,13 @@ class SaleController extends Controller
 
     public function create()
     {
-        return view('sales.create');
+        $insuranceContracts = \App\Models\Contract::where('user_id', Auth::id())
+            ->where('type', 'insurance')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        return view('sales.create', compact('insuranceContracts'));
     }
 
     public function store(Request $request)

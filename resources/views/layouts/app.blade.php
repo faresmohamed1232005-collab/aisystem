@@ -359,6 +359,23 @@
                     <i class="fas fa-truck w-5 text-center"></i> الموردين
                 </a>
 
+                <div class="nav-section">التأمين والتعاقدات</div>
+                <a href="{{ route('contracts.index') }}"
+                    class="nav-item {{ request()->routeIs('contracts.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-file-contract w-5 text-center"></i> التعاقدات
+                </a>
+                <a href="{{ route('insured-patients.index') }}"
+                    class="nav-item {{ request()->routeIs('insured-patients.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-user-injured w-5 text-center"></i> المرضى المؤمّن عليهم
+                </a>
+                <a href="{{ route('insurance-claims.index') }}"
+                    class="nav-item {{ request()->routeIs('insurance-claims.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-file-invoice-dollar w-5 text-center"></i> مطالبات التأمين
+                </a>
+
                 <div class="nav-section">الكاشير</div>
                 <a href="{{ route('drawer-lock.index') }}"
                     class="nav-item {{ request()->routeIs('drawer-lock.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
