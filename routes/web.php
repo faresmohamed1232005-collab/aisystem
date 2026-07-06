@@ -28,6 +28,8 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\InsuredPatientController;
 use App\Http\Controllers\InsuranceClaimController;
+use App\Http\Controllers\BranchController;
+use App\Http\Controllers\StockTransferController;
 
 
 
@@ -128,6 +130,21 @@ Route::middleware('auth')->group(function () {
     // مطالبات التأمين
     Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
     Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
+
+    // ===== الفروع والتحويلات (Phase 2ب) =====
+    // إدارة الفروع (المالك) — عرض/تحرير البيانات والصلاحيات
+    Route::resource('branches', BranchController::class)->only(['index', 'show', 'edit', 'update']);
+
+    // تحويلات المخزون — AJAX قبل الـ wildcard دايماً
+    Route::get('/stock-transfers/drug-batches', [StockTransferController::class, 'drugBatches'])->name('stock-transfers.drug-batches');
+    Route::get('/stock-transfers/alternatives', [StockTransferController::class, 'alternatives'])->name('stock-transfers.alternatives');
+    Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
+    Route::get('/stock-transfers/create', [StockTransferController::class, 'create'])->name('stock-transfers.create');
+    Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+    Route::get('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])->name('stock-transfers.show');
+    Route::get('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive');
+    Route::post('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'confirmReceive'])->name('stock-transfers.receive.confirm');
+    Route::post('/stock-transfers/{stockTransfer}/reject', [StockTransferController::class, 'reject'])->name('stock-transfers.reject');
 
 });
 

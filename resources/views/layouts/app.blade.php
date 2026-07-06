@@ -376,6 +376,18 @@
                     <i class="fas fa-file-invoice-dollar w-5 text-center"></i> مطالبات التأمين
                 </a>
 
+                <div class="nav-section">الفروع والتحويلات</div>
+                <a href="{{ route('branches.index') }}"
+                    class="nav-item {{ request()->routeIs('branches.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-code-branch w-5 text-center"></i> الفروع
+                </a>
+                <a href="{{ route('stock-transfers.index') }}"
+                    class="nav-item {{ request()->routeIs('stock-transfers.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-right-left w-5 text-center"></i> تحويلات المخزون
+                </a>
+
                 <div class="nav-section">الكاشير</div>
                 <a href="{{ route('drawer-lock.index') }}"
                     class="nav-item {{ request()->routeIs('drawer-lock.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
