@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware('sync.auth')->prefix('sync')->group(function () {
+    // تسجيل فرع جديد عند أول تشغيل (يعيد branch_id ثابت من السيرفر).
+    Route::post('/register', [SyncController::class, 'register'])->name('sync.register');
+
     // استقبال دفعة تغييرات من فرع (Push من الفرع → السيرفر).
     Route::post('/push', [SyncController::class, 'push'])->name('sync.push');
 

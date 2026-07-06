@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Drug;
 use App\Models\UserDrugInventory;
+use App\Support\Branch;
 
 class PendingOrderController extends Controller
 {
@@ -170,7 +171,7 @@ class PendingOrderController extends Controller
                 $sale = Sale::create([
                     'user_id' => Auth::id(),
                     'customer_id' => $pendingOrder->customer_id,
-                    'invoice_number' => 'INV-' . strtoupper(substr(uniqid(), -8)),
+                    'invoice_number' => Branch::code() . '-INV-' . strtoupper(substr(uniqid(), -8)),
                     'total' => $netTotal,
                     'discount' => $pendingOrder->discount,
                     'paid' => $paid,

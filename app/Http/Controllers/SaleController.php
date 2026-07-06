@@ -7,6 +7,7 @@ use App\Models\UserDrugInventory;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Customer;
+use App\Support\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -172,7 +173,7 @@ class SaleController extends Controller
                 $sale = Sale::create([
                     'user_id'          => Auth::id(),
                     'customer_id'      => $validated['customer_id'] ?? null,
-                    'invoice_number'   => 'INV-' . strtoupper(substr(uniqid(), -8)),
+                    'invoice_number'   => Branch::code() . '-INV-' . strtoupper(substr(uniqid(), -8)),
                     'total'            => $netTotal,
                     'discount'         => $discount,
                     'paid'             => $paid,

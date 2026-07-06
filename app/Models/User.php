@@ -7,11 +7,25 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /**
+     * ولّد uuid ثابت لكل مستخدم جديد (مفتاح المزامنة server→branch للحسابات).
+     * users ليست Syncable كاملة، لكنها تُسحب للفرع للـ offline login عبر الـ uuid.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (empty($user->uuid)) {
+                $user->uuid = (string) Str::ulid();
+            }
+        });
+    }
 
     /**
      * The attributes that are mass assignable.

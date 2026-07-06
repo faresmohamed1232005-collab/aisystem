@@ -24,8 +24,14 @@ use App\Http\Controllers\AiAssistantController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\MarketPriceCheckController;
+use App\Http\Controllers\SetupController;
 
 
+
+
+// ===== إعداد أول تشغيل (الديسكتوب) — بدون auth/guest، متاح قبل التسجيل =====
+Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
+Route::post('/setup', [SetupController::class, 'store'])->name('setup.store');
 
 
 // ===== Guest =====

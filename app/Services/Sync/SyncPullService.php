@@ -2,6 +2,7 @@
 
 namespace App\Services\Sync;
 
+use App\Support\Branch;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -68,13 +69,18 @@ class SyncPullService
         $applied = 0;
 
         for ($round = 0; $round < self::MAX_ROUNDS; $round++) {
-            $cursor = DB::table('sync_state')->where('table_name', $table)->value('last_pulled_at');
+            // cursor مركّب (keyset): {ts, uuid} — يمنع تخطّي صفوف بنفس الثانية.
+            $state  = DB::table('sync_state')->where('table_name', $table)->first();
+            $cursor = $state && $state->last_pulled_at !== null
+                ? ['ts' => $state->last_pulled_at, 'uuid' => $state->last_pulled_uuid]
+                : null;
 
             $response = Http::withHeaders(['X-Sync-Token' => $token])
                 ->timeout(120)
                 ->acceptJson()
                 ->post($serverUrl . '/api/sync/pull', [
-                    'cursors' => [$table => $cursor],
+                    'cursors'   => [$table => $cursor],
+                    'branch_id' => Branch::id(), // ليخصّص السيرفر حسابات هذا الفرع
                 ]);
 
             if (!$response->successful() || !$response->json('success')) {
@@ -92,12 +98,17 @@ class SyncPullService
                 $applied += count($rows);
             }
 
-            // حدّث cursor الجدول.
+            // حدّث cursor الجدول (ts + uuid).
             $newCursor = $payload['cursor'] ?? $cursor;
-            if ($newCursor !== null) {
+            if (is_array($newCursor) && !empty($newCursor['ts'])) {
                 DB::table('sync_state')->updateOrInsert(
                     ['table_name' => $table],
-                    ['last_pulled_at' => $newCursor, 'last_pull_run_at' => Carbon::now(), 'updated_at' => Carbon::now()]
+                    [
+                        'last_pulled_at'   => $newCursor['ts'],
+                        'last_pulled_uuid' => $newCursor['uuid'] ?? null,
+                        'last_pull_run_at' => Carbon::now(),
+                        'updated_at'       => Carbon::now(),
+                    ]
                 );
             }
 

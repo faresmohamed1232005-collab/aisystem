@@ -37,15 +37,23 @@ class SyncPushService
         }
 
         $models    = config('sync.models', []);
+        $pushables = config('sync.push', array_keys($models)); // اتجاه: ما يدفعه الفرع فقط
         $relations = config('sync.relations', []);
         $batchSize = (int) config('sync.batch_size', 200);
 
         // اجمع الدفعة لكل جدول مع ترجمة الـ FK إلى uuid.
         $payloadTables = [];
-        $idsToMark     = []; // table => [local ids] لتعليمها synced بعد النجاح
-        $totalRows     = 0;
+        // table => [uuid => local id] لتعليم المقبول فقط بـ synced بعد النجاح.
+        // نربط بالـ uuid لأن السيرفر يرجّع قائمة المقبول بالـ uuid لا بالـ id المحلي.
+        $uuidToId  = [];
+        $totalRows = 0;
 
-        foreach ($models as $table => $modelClass) {
+        foreach ($pushables as $table) {
+            $modelClass = $models[$table] ?? null;
+            if ($modelClass === null) {
+                continue; // جدول push غير معرّف في السجل — تجاهله بأمان
+            }
+
             $rows = $modelClass::query()
                 ->withTrashed()          // ندفع المحذوف ناعماً أيضاً (deleted_at)
                 ->pendingSync()
@@ -60,7 +68,7 @@ class SyncPushService
             $outRows = [];
             foreach ($rows as $model) {
                 $attrs = $model->getAttributes();
-                $idsToMark[$table][] = $attrs['id'];
+                $uuidToId[$table][$attrs['uuid']] = $attrs['id'];
 
                 // ترجمة الـ FK: id محلي → <fk>_uuid
                 foreach ($fkMap as $fkColumn => $referencedTable) {
@@ -103,10 +111,34 @@ class SyncPushService
             return ['success' => false, 'pushed' => 0, 'message' => $msg, 'detail' => $response->json('detail')];
         }
 
-        // نجاح: علّم الصفوف المرفوعة بـ synced_at = now() (لكل جدول دفعةً واحدة).
-        $now = Carbon::now();
-        foreach ($idsToMark as $table => $ids) {
-            DB::table($table)->whereIn('id', $ids)->update(['synced_at' => $now]);
+        // نجاح: علّم بـ synced_at = now() الصفوف التي **قبلها السيرفر فقط**. أي صف
+        // رفضه السيرفر (مثلاً مرجع FK لم يصل بعد) يبقى pendingSync ليُعاد رفعه الدورة
+        // القادمة بعد وصول مرجعه — بدل أن يُعلَّم متزامناً ويضيع بصمت.
+        $now    = Carbon::now();
+        $detail = $response->json('detail', []);
+        foreach ($uuidToId as $table => $map) {
+            $tableDetail   = $detail[$table] ?? [];
+            $acceptedUuids = $tableDetail['accepted_uuids'] ?? null;
+
+            if (is_array($acceptedUuids)) {
+                // المسار الصحيح: نعلّم فقط ما قبله السيرفر.
+                $ids = [];
+                foreach ($acceptedUuids as $u) {
+                    if (isset($map[$u])) {
+                        $ids[] = $map[$u];
+                    }
+                }
+            } elseif ((int) ($tableDetail['rejected'] ?? 0) === 0) {
+                // توافق مع سيرفر أقدم لا يرجّع accepted_uuids: نعلّم الكل فقط إذا لم يُرفض شيء.
+                $ids = array_values($map);
+            } else {
+                // رُفض بعضها ولا نعرف أيها → لا نعلّم شيئاً، يُعاد الكل بأمان.
+                $ids = [];
+            }
+
+            if (!empty($ids)) {
+                DB::table($table)->whereIn('id', $ids)->update(['synced_at' => $now]);
+            }
         }
 
         return [

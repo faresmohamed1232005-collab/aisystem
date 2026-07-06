@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'super.admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
             'sync.auth'   => \App\Http\Middleware\SyncAuth::class,
         ]);
+
+        // على الديسكتوب غير المُسجَّل: وجّه كل طلبات الويب إلى شاشة الإعداد أولاً.
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureBranchRegistered::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

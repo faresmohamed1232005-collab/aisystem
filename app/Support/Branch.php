@@ -2,23 +2,25 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
  * هوية الفرع (Branch identity) — أساس المزامنة متعددة الفروع.
  *
  * كل تثبيت (نسخة desktop على جهاز فرع، أو السيرفر المركزي) له معرّف فرع ثابت.
- * يُقرأ من إعداد البيئة BRANCH_ID، وإن لم يوجد يُولَّد ULID ثابت ويُخزَّن (cache) ليبقى
- * ثابتاً عبر الطلبات. على السيرفر المركزي نضبط BRANCH_ID=server (أو ما يناسب).
+ * مصدر الهوية بالترتيب:
+ *   1) config('sync.branch_id') — يُهيَّأ من Settings الدائم (شاشة الإعداد) في
+ *      AppServiceProvider، أو من env BRANCH_ID على السيرفر (BRANCH_ID=server).
+ *   2) Settings الدائم مباشرة (app_settings) — يبقى ثابتاً رغم مسح الكاش.
+ *   3) fallback: توليد ULID ثابت وحفظه في Settings (لا في الكاش المتقلّب).
  *
- * BRANCH_CODE اختياري: بادئة قصيرة تُستخدم في ترقيم الفواتير (مثل A, B, C) لمنع
- * تصادم أرقام الفواتير بين الفروع.
+ * ملاحظة: نسخة .exe واحدة تكفي لكل الفروع — الهوية تُخصَّص وقت التشغيل عبر شاشة
+ * الإعداد (تسجيل عند السيرفر) لا وقت البناء.
+ *
+ * code: بادئة قصيرة تُستخدم في ترقيم الفواتير (مثل A, B, C) لمنع التصادم بين الفروع.
  */
 class Branch
 {
-    private const CACHE_KEY = 'branch.id';
-
     /** معرّف الفرع الثابت لهذا التثبيت. */
     public static function id(): string
     {
@@ -27,14 +29,22 @@ class Branch
             return (string) $configured;
         }
 
-        // لم يُضبط في البيئة → ولّد معرّفاً ثابتاً واحفظه (يبقى ثابتاً ما دام الكاش قائماً).
-        return Cache::rememberForever(self::CACHE_KEY, fn () => 'br_' . Str::ulid());
+        // مصدر دائم (شاشة الإعداد تكتبه هنا عادةً).
+        $stored = Settings::get('branch.id');
+        if (!empty($stored)) {
+            return (string) $stored;
+        }
+
+        // fallback أخير: ولّد معرّفاً ثابتاً واحفظه دائماً (Settings لا Cache).
+        $new = 'br_' . Str::ulid();
+        Settings::set('branch.id', $new);
+        return $new;
     }
 
-    /** بادئة الفرع المستخدمة في ترقيم الفواتير (مثل "A"). افتراضي مشتق من المعرّف. */
+    /** بادئة الفرع المستخدمة في ترقيم الفواتير (مثل "A"). */
     public static function code(): string
     {
-        $code = config('sync.branch_code') ?: env('BRANCH_CODE');
+        $code = config('sync.branch_code') ?: env('BRANCH_CODE') ?: Settings::get('branch.code');
         if (!empty($code)) {
             return strtoupper((string) $code);
         }
@@ -47,5 +57,20 @@ class Branch
     public static function isServer(): bool
     {
         return self::id() === (config('sync.server_branch_id') ?: 'server');
+    }
+
+    /**
+     * هل الفرع مُسجَّل وجاهز للمزامنة؟ (هوية + رابط سيرفر + توكن محفوظة دائماً.)
+     * السيرفر المركزي يُعدّ «مُسجَّلاً» دائماً (يُدار عبر env لا شاشة الإعداد).
+     */
+    public static function isRegistered(): bool
+    {
+        if (self::isServer()) {
+            return true;
+        }
+
+        return Settings::has('branch.id')
+            && Settings::has('sync.server_url')
+            && Settings::has('sync.token');
     }
 }

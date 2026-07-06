@@ -28,7 +28,7 @@ class SyncRepository
      * @param  array   $rows        صفوف (مصفوفات ترابطية) قادمة من الفرع/السيرفر، تحوي uuid
      * @param  bool    $markSynced  علّم الصف كمتزامن (synced_at = updated_at) — يُستخدم عند الـ
      *                              pull على الفرع لمنع إعادة رفع ما سُحب (echo loop).
-     * @return array{accepted:int, rejected:int, errors:array}
+     * @return array{accepted:int, rejected:int, errors:array, accepted_uuids:array}
      */
     public function applyBatch(string $table, array $rows, bool $markSynced = false): array
     {
@@ -36,25 +36,29 @@ class SyncRepository
         $relations = config('sync.relations', []);
 
         if (!isset($models[$table])) {
-            return ['accepted' => 0, 'rejected' => count($rows), 'errors' => ["جدول غير مدعوم: {$table}"]];
+            return ['accepted' => 0, 'rejected' => count($rows), 'errors' => ["جدول غير مدعوم: {$table}"], 'accepted_uuids' => []];
         }
 
-        $fkMap    = $relations[$table] ?? [];
-        $accepted = 0;
-        $rejected = 0;
-        $errors   = [];
+        $fkMap         = $relations[$table] ?? [];
+        $accepted      = 0;
+        $rejected      = 0;
+        $errors        = [];
+        $acceptedUuids = []; // نرجّع الـ uuid المقبولة ليعلّمها الفرع synced (المرفوض يُعاد)
 
         foreach ($rows as $row) {
             try {
                 $this->applyRow($table, $row, $fkMap, $markSynced);
                 $accepted++;
+                if (!empty($row['uuid'])) {
+                    $acceptedUuids[] = $row['uuid'];
+                }
             } catch (\Throwable $e) {
                 $rejected++;
                 $errors[] = ($row['uuid'] ?? '?') . ': ' . $e->getMessage();
             }
         }
 
-        return ['accepted' => $accepted, 'rejected' => $rejected, 'errors' => $errors];
+        return ['accepted' => $accepted, 'rejected' => $rejected, 'errors' => $errors, 'accepted_uuids' => $acceptedUuids];
     }
 
     /**
@@ -67,7 +71,10 @@ class SyncRepository
             throw new \RuntimeException('صف بدون uuid — مرفوض');
         }
 
-        // لا نثق في id المحلي القادم من الفرع — نزيله، الربط يتم عبر uuid فقط.
+        // preserve_id (users): نحفظ نفس id السيرفر على الفرع ليتطابق Auth::id() وكل
+        // أعمدة user_id تلقائياً. لغير هذه الجداول لا نثق في id المحلي — الربط عبر uuid.
+        $preserveId = in_array($table, config('sync.preserve_id', []), true);
+        $incomingId = $row['id'] ?? null;
         unset($row['id']);
 
         // ترجمة كل FK من uuid (كما أرسله الفرع) إلى id محلي على السيرفر.
@@ -93,7 +100,14 @@ class SyncRepository
         if ($existingId !== null) {
             DB::table($table)->where('id', $existingId)->update($row);
         } else {
-            $newId = DB::table($table)->insertGetId($row);
+            // preserve_id: أدرج بنفس id السيرفر (users على الفرع فقط).
+            if ($preserveId && $incomingId !== null) {
+                $row['id'] = $incomingId;
+                DB::table($table)->insert($row);
+                $newId = $incomingId;
+            } else {
+                $newId = DB::table($table)->insertGetId($row);
+            }
             $this->uuidToId[$table][$uuid] = $newId;
         }
     }

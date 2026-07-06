@@ -44,14 +44,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | الجداول القابلة للمزامنة وترتيبها (Push order)
+    | سجل الجداول القابلة للمزامنة (Registry) وترتيبها
     |--------------------------------------------------------------------------
     |
-    | الترتيب مهم: الجداول الأب قبل الأبناء حتى تتوفّر مفاتيح uuid المرجعية على
-    | السيرفر قبل وصول الصفوف التابعة. كل عنصر يربط اسم الجدول بالـ Model.
+    | هذا السجل الكامل لكل جدول قابل للمزامنة (يربط اسم الجدول بالـ Model). يُستخدم:
+    |   - كقائمة بيضاء للجداول المدعومة في SyncRepository::applyBatch (على الطرفين).
+    |   - لحلّ Model class + ترتيب التبعيات عند الـ push (انظر 'push' أعلاه).
+    | الترتيب مهم: الجداول الأب قبل الأبناء حتى تتوفّر مفاتيح uuid المرجعية قبل
+    | وصول الصفوف التابعة. اتجاه كل جدول (push/pull) محدَّد في 'push' و'pull'.
     |
     */
     'models' => [
+        'users'                   => \App\Models\User::class,
         'drugs'                   => \App\Models\Drug::class,
         'products'                => \App\Models\Product::class,
         'suppliers'               => \App\Models\Supplier::class,
@@ -76,6 +80,48 @@ return [
         'sub_users'               => \App\Models\SubUser::class,
         'notifications'           => \App\Models\Notification::class,
         'ads'                     => \App\Models\Ad::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | الجداول التي يدفعها الفرع للسيرفر (Push) — الفرع master لها
+    |--------------------------------------------------------------------------
+    |
+    | قرار الاتجاه (direction-based conflict): البيانات التشغيلية الخاصة بالفرع
+    | (مبيعات/مشتريات/مخزون/مصروفات...) يملكها الفرع ويدفعها للسيرفر فقط. الكتالوج
+    | المركزي (drugs, ads) لا يُدفع — السيرفر master له ويُسحب عبر 'pull' أدناه. هذا
+    | يلغي التعارض ثنائي الاتجاه على الكتالوج من الأساس.
+    |
+    | ملاحظة: 'models' أدناه يبقى السجل الكامل (registry) لأنه يُستخدم أيضاً كقائمة
+    | بيضاء للجداول المدعومة في SyncRepository::applyBatch على الطرفين (بما فيها ما
+    | يُسحب). لذا نفصل ما يُدفع في هذه القائمة، بنفس ترتيب التبعيات (الأب قبل الابن).
+    |
+    | سعر/مخزون الفرع الخاص يعيش في user_drug_inventory (يُدفع) — منفصل عن كتالوج
+    | drugs المركزي (يُسحب).
+    |
+    */
+    'push' => [
+        'products',
+        'suppliers',
+        'customers',
+        'employees',
+        'expenses',
+        'employee_transactions',
+        'user_drug_inventory',
+        'sales',
+        'sale_items',
+        'sale_payments',
+        'sale_returns',
+        'sale_return_items',
+        'purchase_invoices',
+        'purchase_invoice_items',
+        'purchase_payments',
+        'purchase_returns',
+        'purchase_return_items',
+        'pending_orders',
+        'pending_order_items',
+        'drawer_locks',
+        'notifications',
     ],
 
     /*
@@ -106,6 +152,8 @@ return [
         'pending_order_items'    => ['pending_order_id' => 'pending_orders', 'drug_id' => 'drugs'],
         'employee_transactions'  => ['employee_id' => 'employees', 'expense_id' => 'expenses'],
         'user_drug_inventory'    => ['drug_id' => 'drugs'],
+        // sub_users تُسحب server→branch؛ owner_id يُترجم عبر uuid المستخدم المالك.
+        'sub_users'              => ['owner_id' => 'users'],
     ],
 
     /*
@@ -115,14 +163,36 @@ return [
     |
     | الكتالوج والمراجع المركزية التي يوزّعها السيرفر على كل الفروع (الأدوية،
     | الإعلانات). البيانات الخاصة بالفرع (مبيعات/مشتريات/مخزون الفرع) لا تُسحب —
-    | فهي تُدفع من الفرع للسيرفر فقط (انظر models أعلاه). الترتيب: الأب قبل الابن.
+    | فهي تُدفع من الفرع للسيرفر فقط (انظر push أعلاه). الترتيب: الأب قبل الابن.
     |
-    | عند تعارض uuid أثناء السحب: السيرفر يكسب (last-write-wins بـ updated_at).
+    | حسابات الفرع (offline login): users + sub_users تُسحب server→branch لكن **مُخصَّصة
+    | للفرع** (فقط الصيدلية المالكة + موظفيها، عبر branches.user_id) — لا تُسحب كل الجداول.
+    | الترتيب: users قبل sub_users (owner_id يُترجم عبر uuid المستخدم).
+    |
+    | عند تعارض uuid أثناء السحب: السيرفر يكسب (السيرفر master للكتالوج والحسابات).
     |
     */
     'pull' => [
+        'users',
         'drugs',
         'ads',
+        'sub_users',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | جداول تُحفظ بنفس id السيرفر على الفرع (preserve id)
+    |--------------------------------------------------------------------------
+    |
+    | users فقط: الفرع يتبع صيدلية (tenant) واحدة، فنحفظ صف المستخدم بنفس users.id
+    | الموجود على السيرفر بدل توليد id محلي جديد. هكذا يصبح Auth::id() على الفرع
+    | مطابقاً لـ id السيرفر، فتتطابق كل أعمدة user_id في الجداول المدفوعة (sales,
+    | products, customers...) تلقائياً دون الحاجة لترجمة user_id في 13 جدولاً.
+    | يُطبَّق فقط عند السحب على الفرع (users لا تُدفع، فلا يؤثر على السيرفر).
+    |
+    */
+    'preserve_id' => [
+        'users',
     ],
 
 ];
