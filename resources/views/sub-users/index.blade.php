@@ -48,10 +48,9 @@
                             class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none transition bg-white
                                    @error('role') border-red-400 @enderror">
                         <option value="">— اختر الوظيفة —</option>
-                        <option value="pharmacist"  {{ old('role') == 'pharmacist'  ? 'selected' : '' }}>صيدلاني</option>
-                        <option value="cashier"     {{ old('role') == 'cashier'     ? 'selected' : '' }}>كاشير</option>
-                        <option value="supervisor"  {{ old('role') == 'supervisor'  ? 'selected' : '' }}>مشرف</option>
-                        <option value="data_entry"  {{ old('role') == 'data_entry'  ? 'selected' : '' }}>مدخل بيانات</option>
+                        @foreach(\App\Support\Roles::ASSIGNABLE as $r)
+                        <option value="{{ $r }}" {{ old('role') == $r ? 'selected' : '' }}>{{ \App\Support\Roles::label($r) }}</option>
+                        @endforeach
                     </select>
                     @error('role')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -268,10 +267,9 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-1.5">الوظيفة</label>
                 <select name="role" id="edit_role"
                         class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 outline-none transition bg-white">
-                    <option value="pharmacist">صيدلاني</option>
-                    <option value="cashier">كاشير</option>
-                    <option value="supervisor">مشرف</option>
-                    <option value="data_entry">مدخل بيانات</option>
+                    @foreach(\App\Support\Roles::ASSIGNABLE as $r)
+                    <option value="{{ $r }}">{{ \App\Support\Roles::label($r) }}</option>
+                    @endforeach
                 </select>
             </div>
 

@@ -23,23 +23,17 @@ class SubUser extends Model
 
     public function getRoleNameAttribute(): string
     {
-        return match($this->role) {
-            'pharmacist'  => 'صيدلاني',
-            'cashier'     => 'كاشير',
-            'supervisor'  => 'مشرف',
-            'data_entry'  => 'مدخل بيانات',
-            default       => $this->role,
-        };
+        return \App\Support\Roles::label($this->role);
     }
 
     public function getRoleBadgeAttribute(): string
     {
         return match($this->role) {
-            'pharmacist'  => 'bg-blue-100 text-blue-700',
-            'cashier'     => 'bg-green-100 text-green-700',
-            'supervisor'  => 'bg-purple-100 text-purple-700',
-            'data_entry'  => 'bg-yellow-100 text-yellow-700',
-            default       => 'bg-gray-100 text-gray-700',
+            \App\Support\Roles::AREA_MANAGER   => 'bg-purple-100 text-purple-700',
+            \App\Support\Roles::BRANCH_MANAGER => 'bg-indigo-100 text-indigo-700',
+            \App\Support\Roles::PHARMACIST     => 'bg-blue-100 text-blue-700',
+            \App\Support\Roles::ACCOUNTANT     => 'bg-amber-100 text-amber-700',
+            default                            => 'bg-gray-100 text-gray-700',
         };
     }
 }

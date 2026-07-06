@@ -71,7 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
     Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
-    Route::get('/sales/report', [SalesReportController::class, 'index'])->name('sales.report');
+    Route::get('/sales/report', [SalesReportController::class, 'index'])->middleware('can:view_reports')->name('sales.report');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
 
     // ===== Customers =====
@@ -116,35 +116,45 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/purchases/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
 
-    // ===== التأمين والتعاقدات =====
-    // التعاقدات + قواعد التأمين/التسعير
-    Route::post('/contracts/{contract}/insurance-rule', [ContractController::class, 'saveInsuranceRule'])->name('contracts.insurance-rule');
-    Route::post('/contracts/{contract}/pricing-rules', [ContractController::class, 'addPricingRule'])->name('contracts.pricing-rules.store');
-    Route::delete('/contracts/{contract}/pricing-rules/{pricingRule}', [ContractController::class, 'deletePricingRule'])->name('contracts.pricing-rules.destroy');
-    Route::resource('contracts', ContractController::class);
+    // ===== التأمين والتعاقدات ===== (صلاحية: manage_contracts)
+    Route::middleware('can:manage_contracts')->group(function () {
+        // التعاقدات + قواعد التأمين/التسعير
+        Route::post('/contracts/{contract}/insurance-rule', [ContractController::class, 'saveInsuranceRule'])->name('contracts.insurance-rule');
+        Route::post('/contracts/{contract}/pricing-rules', [ContractController::class, 'addPricingRule'])->name('contracts.pricing-rules.store');
+        Route::delete('/contracts/{contract}/pricing-rules/{pricingRule}', [ContractController::class, 'deletePricingRule'])->name('contracts.pricing-rules.destroy');
+        Route::resource('contracts', ContractController::class);
 
-    // المرضى المؤمّن عليهم
-    Route::get('/insured-patients/search', [InsuredPatientController::class, 'search'])->name('insured-patients.search');
-    Route::resource('insured-patients', InsuredPatientController::class)->except(['show']);
+        // المرضى المؤمّن عليهم
+        Route::get('/insured-patients/search', [InsuredPatientController::class, 'search'])->name('insured-patients.search');
+        Route::resource('insured-patients', InsuredPatientController::class)->except(['show']);
 
-    // مطالبات التأمين
-    Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
-    Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
+        // مطالبات التأمين
+        Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
+        Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
+    });
 
     // ===== الفروع والتحويلات (Phase 2ب) =====
-    // إدارة الفروع (المالك) — عرض/تحرير البيانات والصلاحيات
-    Route::resource('branches', BranchController::class)->only(['index', 'show', 'edit', 'update']);
+    // إدارة الفروع (صلاحية: manage_branches)
+    Route::middleware('can:manage_branches')->group(function () {
+        Route::resource('branches', BranchController::class)->only(['index', 'show', 'edit', 'update']);
+    });
 
     // تحويلات المخزون — AJAX قبل الـ wildcard دايماً
+    // القراءة (قائمة/تفصيل/بحث باتشات/بدائل) متاحة لأي فاعل معنيّ؛ الإنشاء والاستلام مقيّدان.
     Route::get('/stock-transfers/drug-batches', [StockTransferController::class, 'drugBatches'])->name('stock-transfers.drug-batches');
     Route::get('/stock-transfers/alternatives', [StockTransferController::class, 'alternatives'])->name('stock-transfers.alternatives');
     Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
-    Route::get('/stock-transfers/create', [StockTransferController::class, 'create'])->name('stock-transfers.create');
-    Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+    // ⚠️ create/store قبل الـ wildcard {stockTransfer} حتى لا يبتلعهما.
+    Route::middleware('can:create_transfers')->group(function () {
+        Route::get('/stock-transfers/create', [StockTransferController::class, 'create'])->name('stock-transfers.create');
+        Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+    });
+    Route::middleware('can:receive_transfers')->group(function () {
+        Route::get('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive');
+        Route::post('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'confirmReceive'])->name('stock-transfers.receive.confirm');
+        Route::post('/stock-transfers/{stockTransfer}/reject', [StockTransferController::class, 'reject'])->name('stock-transfers.reject');
+    });
     Route::get('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])->name('stock-transfers.show');
-    Route::get('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive');
-    Route::post('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'confirmReceive'])->name('stock-transfers.receive.confirm');
-    Route::post('/stock-transfers/{stockTransfer}/reject', [StockTransferController::class, 'reject'])->name('stock-transfers.reject');
 
 });
 
@@ -172,8 +182,8 @@ Route::middleware('auth')->prefix('purchase-returns')->name('purchase-returns.')
 });
 
 
-// ── صلاحيات المستخدمين (أدمن فقط) ──
-Route::prefix('sub-users')->name('sub-users.')->group(function () {
+// ── صلاحيات المستخدمين (المالك فقط) — كانت خارج auth (ثغرة اتصلحت في Phase 3) ──
+Route::middleware(['auth', 'can:manage_sub_users'])->prefix('sub-users')->name('sub-users.')->group(function () {
     Route::get('/', [SubUserController::class, 'index'])->name('index');
     Route::post('/', [SubUserController::class, 'store'])->name('store');
     Route::put('/{subUser}', [SubUserController::class, 'update'])->name('update');
@@ -181,35 +191,26 @@ Route::prefix('sub-users')->name('sub-users.')->group(function () {
     Route::patch('/{subUser}/toggle', [SubUserController::class, 'toggleActive'])->name('toggle');
 });
 
-Route::prefix('drawer-lock')->name('drawer-lock.')->group(function () {
-    Route::get('/', [DrawerLockController::class, 'index'])->name('index');
-    Route::post('/', [DrawerLockController::class, 'store'])->name('store');
-    Route::get('/expected', [DrawerLockController::class, 'expectedAmount'])->name('expected'); // ← جديد
+Route::middleware('auth')->group(function () {
+    Route::prefix('drawer-lock')->name('drawer-lock.')->group(function () {
+        Route::get('/', [DrawerLockController::class, 'index'])->name('index');
+        Route::post('/', [DrawerLockController::class, 'store'])->name('store');
+        Route::get('/expected', [DrawerLockController::class, 'expectedAmount'])->name('expected');
+    });
+    Route::delete('drawer-lock/{drawerLock}', [DrawerLockController::class, 'destroy'])->name('drawer-lock.destroy');
+
+    // مخزن اليوزر — القراءة/البحث لأي فاعل مسجّل؛ الكتابة تحتاج manage_stock.
+    Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
+    Route::get('/products/catalog', [ProductsController::class, 'catalog'])->name('products.catalog');
+    Route::get('/products/search', [ProductsController::class, 'search'])->name('products.search');
+    Route::get('/products/barcode', [ProductsController::class, 'findByBarcode'])->name('products.barcode');
+    Route::get('/products-search', [ProductsController::class, 'search'])->name('products.search');
+
+    Route::middleware('can:manage_stock')->group(function () {
+        Route::post('/products/add-to-inventory', [ProductsController::class, 'addToInventory'])->name('products.add-to-inventory');
+        Route::put('/products/inventory/{drugId}', [ProductsController::class, 'updateInventory'])->name('products.update-inventory');
+    });
 });
-
-Route::delete('drawer-lock/{drawerLock}', [DrawerLockController::class, 'destroy'])
-    ->name('drawer-lock.destroy');
-
-
-// مخزن اليوزر (الأدوية اللي عنده كمية فيها)
-Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
-
-// كتالوج كل الأدوية (للبحث وإضافة للمخزن)
-Route::get('/products/catalog', [ProductsController::class, 'catalog'])->name('products.catalog');
-
-// بحث AJAX (للبيع المباشر)
-Route::get('/products/search', [ProductsController::class, 'search'])->name('products.search');
-
-// بحث بالباركود
-Route::get('/products/barcode', [ProductsController::class, 'findByBarcode'])->name('products.barcode');
-
-// إضافة دواء من الكتالوج لمخزن اليوزر
-Route::post('/products/add-to-inventory', [ProductsController::class, 'addToInventory'])->name('products.add-to-inventory');
-
-// تحديث كمية/سعر دواء في مخزن اليوزر
-Route::put('/products/inventory/{drugId}', [ProductsController::class, 'updateInventory'])->name('products.update-inventory');
-
-Route::get('/products-search', [ProductsController::class, 'search'])->name('products.search');
 
 
 Route::prefix('super-admin')->middleware(['auth', 'super.admin'])->group(function () {
@@ -244,13 +245,12 @@ Route::patch(
 )->name('super.admin.resetPassword');
 
 
-// ── المصروفات ──
-Route::middleware(['auth'])->group(function () {
+// ── المصروفات والموظفون ── (صلاحية: manage_employees)
+Route::middleware(['auth', 'can:manage_employees'])->group(function () {
     Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
     Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
     Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
-});
-Route::middleware(['auth'])->group(function () {
+
     Route::get('/employees', [App\Http\Controllers\EmployeeController::class, 'index'])->name('employees.index');
     Route::post('/employees', [App\Http\Controllers\EmployeeController::class, 'store'])->name('employees.store');
     Route::delete('/employees/{employee}', [App\Http\Controllers\EmployeeController::class, 'destroy'])->name('employees.destroy');
@@ -261,7 +261,7 @@ Route::middleware(['auth'])->group(function () {
 
 
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'can:view_reports'])->group(function () {
     Route::get('/forecast', [ForecastController::class, 'index'])->name('forecast.index');
 });
 

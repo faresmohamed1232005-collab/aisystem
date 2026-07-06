@@ -3,8 +3,11 @@
 namespace App\Providers;
 
 use App\Listeners\HandleUpdateEvents;
+use App\Support\Actor;
+use App\Support\Roles;
 use App\Support\Settings;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Native\Desktop\Events\AutoUpdater\UpdateAvailable;
 use Native\Desktop\Events\AutoUpdater\UpdateDownloaded;
@@ -41,11 +44,26 @@ class AppServiceProvider extends ServiceProvider
         // هيّئ إعدادات المزامنة من المخزن الدائم (شاشة الإعداد) قبل أي استخدام.
         $this->hydrateSyncConfigFromSettings();
 
+        // سجّل Gates الصلاحيات (RBAC). كل Gate يستشير Actor (المالك أو الموظف) لا
+        // Auth::user() مباشرة، لأن Auth::id() دائماً المالك بينما الفاعل قد يكون موظفاً.
+        $this->registerRoleGates();
+
         // ربط أحداث التحديث (NativePHP AutoUpdater) بمعالجها.
         // محميّ بـ class_exists حتى لا يفشل تشغيل السيرفر (بيئة الويب بدون NativePHP).
         if (class_exists(UpdateAvailable::class)) {
             Event::listen(UpdateAvailable::class, [HandleUpdateEvents::class, 'handleAvailable']);
             Event::listen(UpdateDownloaded::class, [HandleUpdateEvents::class, 'handleDownloaded']);
+        }
+    }
+
+    /**
+     * سجّل كل صلاحية كـ Gate يستشير Actor. هكذا يعمل middleware('can:ability')
+     * و@can('ability') مع نظام الأدوار المخصّص (المالك/الموظف) بلا تغيير في مواضعها.
+     */
+    private function registerRoleGates(): void
+    {
+        foreach (Roles::ABILITIES as $ability) {
+            Gate::define($ability, fn ($user = null) => Actor::can($ability));
         }
     }
 

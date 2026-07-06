@@ -294,6 +294,7 @@
                     <span id="pending-badge"
                         class="mr-auto hidden bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">0</span>
                 </a>
+                @can('manage_employees')
                 <div class="nav-section">المصروفات</div>
                 <a href="{{ route('expenses.index') }}"
                     class="nav-item {{ request()->routeIs('expenses.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
@@ -305,6 +306,7 @@
                     onclick="closeSidebar()">
                     <i class="fas fa-user-tie w-5 text-center"></i> الموظفين
                 </a>
+                @endcan
                 <div class="nav-section">المخزن</div>
                 <a href="{{ route('products.index') }}"
                     class="nav-item {{ request()->routeIs('products.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
@@ -313,6 +315,7 @@
                 </a>
 
                 <div class="nav-section">المبيعات</div>
+                @can('view_reports')
                 <a href="{{ route('sales.report') }}"
                     class="nav-item {{ request()->routeIs('sales.report') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
@@ -323,6 +326,7 @@
                     onclick="closeSidebar()">
                     <i class="fas fa-robot w-5 text-center text-indigo-400"></i> التوقعات و الطلب
                 </a>
+                @endcan
                 <a href="{{ route('sale-returns.index') }}"
                     class="nav-item {{ request()->routeIs('sale-returns.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
@@ -359,6 +363,7 @@
                     <i class="fas fa-truck w-5 text-center"></i> الموردين
                 </a>
 
+                @can('manage_contracts')
                 <div class="nav-section">التأمين والتعاقدات</div>
                 <a href="{{ route('contracts.index') }}"
                     class="nav-item {{ request()->routeIs('contracts.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
@@ -375,18 +380,23 @@
                     onclick="closeSidebar()">
                     <i class="fas fa-file-invoice-dollar w-5 text-center"></i> مطالبات التأمين
                 </a>
+                @endcan
 
+                @canany(['manage_branches', 'create_transfers', 'receive_transfers'])
                 <div class="nav-section">الفروع والتحويلات</div>
+                @can('manage_branches')
                 <a href="{{ route('branches.index') }}"
                     class="nav-item {{ request()->routeIs('branches.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
                     <i class="fas fa-code-branch w-5 text-center"></i> الفروع
                 </a>
+                @endcan
                 <a href="{{ route('stock-transfers.index') }}"
                     class="nav-item {{ request()->routeIs('stock-transfers.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
                     <i class="fas fa-right-left w-5 text-center"></i> تحويلات المخزون
                 </a>
+                @endcanany
 
                 <div class="nav-section">الكاشير</div>
                 <a href="{{ route('drawer-lock.index') }}"
@@ -395,30 +405,22 @@
                     <i class="fas fa-cash-register w-5 text-center"></i> تقفيل درج الكاشير
                 </a>
 
-                @if ($isAdmin)
+                @can('manage_sub_users')
                     <div class="nav-section">الإدارة</div>
                     <a href="{{ route('sub-users.index') }}"
                         class="nav-item {{ request()->routeIs('sub-users.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                         onclick="closeSidebar()">
                         <i class="fas fa-shield-halved w-5 text-center"></i> الصلاحيات
                     </a>
-                @endif
+                @endcan
             </nav>
 
             <div class="p-4 border-t border-white/10">
                 <div class="text-xs text-gray-300 font-semibold mb-0.5 truncate">{{ $displayName }}</div>
                 @if ($isSubUser)
-                    <div class="text-xs text-indigo-400 mb-2">
-                        {{ match (session('sub_user.role')) {
-                            'pharmacist' => '🧪 صيدلاني',
-                            'cashier' => '💰 كاشير',
-                            'supervisor' => '👁 مشرف',
-                            'data_entry' => '✍️ مدخل بيانات',
-                            default => session('sub_user.role'),
-                        } }}
-                    </div>
+                    <div class="text-xs text-indigo-400 mb-2">{{ \App\Support\Roles::label(session('sub_user.role')) }}</div>
                 @else
-                    <div class="text-xs text-indigo-400 mb-2">👑 مدير النظام</div>
+                    <div class="text-xs text-indigo-400 mb-2">👑 المالك</div>
                 @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf

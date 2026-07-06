@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\SubUser;
 use App\Models\User;
+use App\Support\Roles;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class SubUserController extends Controller
 {
@@ -36,7 +38,7 @@ class SubUserController extends Controller
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:sub_users,email',
             'password' => 'required|string|min:6',
-            'role'     => 'required|in:pharmacist,cashier,supervisor,data_entry',
+            'role'     => ['required', Rule::in(Roles::ASSIGNABLE)],
         ], [
             'name.required'     => 'الاسم مطلوب',
             'email.required'    => 'البريد الإلكتروني مطلوب',
@@ -68,7 +70,7 @@ class SubUserController extends Controller
         $request->validate([
             'name'  => 'required|string|max:100',
             'email' => 'required|email|unique:sub_users,email,' . $subUser->id,
-            'role'  => 'required|in:pharmacist,cashier,supervisor,data_entry',
+            'role'  => ['required', Rule::in(Roles::ASSIGNABLE)],
         ], [
             'name.required'  => 'الاسم مطلوب',
             'email.required' => 'البريد الإلكتروني مطلوب',
