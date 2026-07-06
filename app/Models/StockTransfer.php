@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\Syncable;
 use App\Support\Sql;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 class StockTransfer extends Model
 {
     use Syncable;
+    use Auditable;
 
     public const STATUSES = ['draft', 'sent', 'received', 'rejected'];
 

@@ -49,6 +49,7 @@ class Roles
         'do_sales',           // البيع + مرتجعات البيع + الطلبات المعلّقة
         'manage_customers',   // العملاء + الموردين
         'manage_stock',       // إضافة للمخزن + الجرد
+        'view_audit',         // عرض سجل التدقيق
     ];
 
     /**
@@ -59,7 +60,7 @@ class Roles
         self::AREA_MANAGER => [
             'manage_branches', 'create_transfers', 'receive_transfers', 'manage_contracts',
             'manage_employees', 'view_reports', 'manage_pricing', 'manage_purchases',
-            'do_sales', 'manage_customers', 'manage_stock',
+            'do_sales', 'manage_customers', 'manage_stock', 'view_audit',
         ],
         self::BRANCH_MANAGER => [
             'create_transfers', 'receive_transfers', 'view_reports', 'manage_pricing',
@@ -69,7 +70,7 @@ class Roles
             'do_sales', 'manage_customers', 'manage_stock', 'receive_transfers',
         ],
         self::ACCOUNTANT => [
-            'view_reports', 'manage_contracts', 'manage_employees', 'manage_customers',
+            'view_reports', 'manage_contracts', 'manage_employees', 'manage_customers', 'view_audit',
         ],
     ];
 

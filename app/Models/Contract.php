@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\Syncable;
 use App\Support\Sql;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 class Contract extends Model
 {
     use Syncable;
+    use Auditable;
 
     public const TYPES = ['insurance', 'government', 'company', 'syndicate', 'hospital', 'university'];
 

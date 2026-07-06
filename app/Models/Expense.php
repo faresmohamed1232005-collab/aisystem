@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Syncable;
+use App\Models\Concerns\Auditable;
 
 class Expense extends Model
 {
     use Syncable;
+    use Auditable;
 
     use HasFactory;
 

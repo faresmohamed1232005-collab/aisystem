@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Syncable;
+use App\Models\Concerns\Auditable;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 
 class SubUser extends Model
 {
     use Syncable;
+    use Auditable;
 
     use Authorizable;
 

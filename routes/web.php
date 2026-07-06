@@ -133,6 +133,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('insurance-claims', InsuranceClaimController::class)->except(['edit', 'update']);
     });
 
+    // ===== سجل التدقيق (Phase 3B) — قراءة فقط =====
+    Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
+        ->middleware('can:view_audit')->name('audit-logs.index');
+
     // ===== الفروع والتحويلات (Phase 2ب) =====
     // إدارة الفروع (صلاحية: manage_branches)
     Route::middleware('can:manage_branches')->group(function () {

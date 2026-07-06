@@ -405,14 +405,23 @@
                     <i class="fas fa-cash-register w-5 text-center"></i> تقفيل درج الكاشير
                 </a>
 
-                @can('manage_sub_users')
+                @canany(['manage_sub_users', 'view_audit'])
                     <div class="nav-section">الإدارة</div>
+                    @can('manage_sub_users')
                     <a href="{{ route('sub-users.index') }}"
                         class="nav-item {{ request()->routeIs('sub-users.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                         onclick="closeSidebar()">
                         <i class="fas fa-shield-halved w-5 text-center"></i> الصلاحيات
                     </a>
-                @endcan
+                    @endcan
+                    @can('view_audit')
+                    <a href="{{ route('audit-logs.index') }}"
+                        class="nav-item {{ request()->routeIs('audit-logs.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                        onclick="closeSidebar()">
+                        <i class="fas fa-clipboard-list w-5 text-center"></i> سجل التدقيق
+                    </a>
+                    @endcan
+                @endcanany
             </nav>
 
             <div class="p-4 border-t border-white/10">
