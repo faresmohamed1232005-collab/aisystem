@@ -226,6 +226,9 @@ class SyncController extends Controller
                 $query->where('id', $ownerUserId ?? -1);
             } elseif ($table === 'sub_users') {
                 $query->where('owner_id', $ownerUserId ?? -1);
+            } elseif (in_array($table, config('sync.pull_owner_scoped', []), true)) {
+                // بيانات ماستر خاصة بالمالك (تعاقدات/تأمين): تُسحب لفروع نفس المالك فقط.
+                $query->where('user_id', $ownerUserId ?? -1);
             }
 
             $query->orderBy('updated_at')

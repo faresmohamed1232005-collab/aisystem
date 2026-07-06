@@ -80,6 +80,15 @@ return [
         'sub_users'               => \App\Models\SubUser::class,
         'notifications'           => \App\Models\Notification::class,
         'ads'                     => \App\Models\Ad::class,
+
+        // موديول التعاقدات والتأمين (Phase 1). التعاقدات وقواعدها ومرضاها = ماستر
+        // تُسحب owner-scoped (السيرفر master). المطالبات = تشغيلية تُدفع من الفرع.
+        'contracts'               => \App\Models\Contract::class,
+        'insurance_rules'         => \App\Models\InsuranceRule::class,
+        'pricing_rules'           => \App\Models\PricingRule::class,
+        'insured_patients'        => \App\Models\InsuredPatient::class,
+        'insurance_claims'        => \App\Models\InsuranceClaim::class,
+        'insurance_claim_items'   => \App\Models\InsuranceClaimItem::class,
     ],
 
     /*
@@ -122,6 +131,9 @@ return [
         'pending_order_items',
         'drawer_locks',
         'notifications',
+        // المطالبات تُنشأ على الفرع من فواتيره وتُدفع للسيرفر.
+        'insurance_claims',
+        'insurance_claim_items',
     ],
 
     /*
@@ -142,7 +154,7 @@ return [
         'sale_payments'          => ['sale_id' => 'sales', 'customer_id' => 'customers'],
         'sale_returns'           => ['sale_id' => 'sales', 'customer_id' => 'customers'],
         'sale_return_items'      => ['sale_return_id' => 'sale_returns', 'sale_item_id' => 'sale_items', 'drug_id' => 'drugs'],
-        'sales'                  => ['customer_id' => 'customers'],
+        'sales'                  => ['customer_id' => 'customers', 'contract_id' => 'contracts', 'insured_patient_id' => 'insured_patients'],
         'purchase_invoices'      => ['supplier_id' => 'suppliers'],
         'purchase_invoice_items' => ['purchase_invoice_id' => 'purchase_invoices', 'product_id' => 'products', 'drug_id' => 'drugs'],
         'purchase_payments'      => ['purchase_invoice_id' => 'purchase_invoices', 'supplier_id' => 'suppliers'],
@@ -154,6 +166,13 @@ return [
         'user_drug_inventory'    => ['drug_id' => 'drugs'],
         // sub_users تُسحب server→branch؛ owner_id يُترجم عبر uuid المستخدم المالك.
         'sub_users'              => ['owner_id' => 'users'],
+
+        // موديول التأمين: ترجمة FK عبر uuid.
+        'insurance_rules'        => ['contract_id' => 'contracts'],
+        'pricing_rules'          => ['contract_id' => 'contracts'],
+        'insured_patients'       => ['contract_id' => 'contracts'],
+        'insurance_claims'       => ['contract_id' => 'contracts'],
+        'insurance_claim_items'  => ['claim_id' => 'insurance_claims', 'sale_id' => 'sales'],
     ],
 
     /*
@@ -177,6 +196,28 @@ return [
         'drugs',
         'ads',
         'sub_users',
+        // التعاقدات وقواعدها ومرضاها — ماستر على مستوى المالك، تُسحب owner-scoped.
+        // الترتيب: العقد قبل قواعده/مرضاه (ترجمة contract_id عبر uuid).
+        'contracts',
+        'insurance_rules',
+        'pricing_rules',
+        'insured_patients',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | جداول pull مقيّدة بمالك الفرع (owner-scoped) — لا تُبَثّ للجميع
+    |--------------------------------------------------------------------------
+    |
+    | زي users/sub_users: بيانات ماستر خاصة بصيدلية (tenant) واحدة تُسحب فقط لفروع
+    | نفس المالك (عبر branches.user_id) لا لكل الفروع. drugs/ads تبقى عامة للجميع.
+    |
+    */
+    'pull_owner_scoped' => [
+        'contracts',
+        'insurance_rules',
+        'pricing_rules',
+        'insured_patients',
     ],
 
     /*

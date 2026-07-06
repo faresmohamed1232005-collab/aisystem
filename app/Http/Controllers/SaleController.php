@@ -43,6 +43,8 @@ class SaleController extends Controller
             'payment_method'     => 'required|in:cash,card,insurance,deferred',
             'card_type'          => 'nullable|in:visa,instapay,wallet',
             'customer_id'        => 'nullable|integer|exists:customers,id',
+            'contract_id'        => 'nullable|integer|exists:contracts,id',
+            'insured_patient_id' => 'nullable|integer|exists:insured_patients,id',
             'discount'           => 'nullable|numeric|min:0',
             'paid'               => 'required|numeric|min:0',
             'notes'              => 'nullable|string|max:500',
@@ -170,9 +172,31 @@ class SaleController extends Controller
                     $paymentStatus = 'partial';
                 }
 
+                // ══════════════════════════════════════════════
+                // Contract Pricing Engine — تقسيم فاتورة التأمين تلقائياً
+                // ══════════════════════════════════════════════
+                $coveredAmount = 0;
+                $patientAmount = $netTotal;
+                $contractId    = null;
+                if ($validated['payment_method'] === 'insurance' && !empty($validated['contract_id'])) {
+                    $contract = \App\Models\Contract::with('insuranceRule')
+                        ->where('user_id', Auth::id())
+                        ->find($validated['contract_id']);
+                    if ($contract) {
+                        $contractId = $contract->id;
+                        $split = app(\App\Services\Insurance\ContractPricingEngine::class)->split($contract, $netTotal);
+                        $coveredAmount = $split['covered'];
+                        $patientAmount = $split['patient'];
+                    }
+                }
+
                 $sale = Sale::create([
-                    'user_id'          => Auth::id(),
-                    'customer_id'      => $validated['customer_id'] ?? null,
+                    'user_id'            => Auth::id(),
+                    'customer_id'        => $validated['customer_id'] ?? null,
+                    'contract_id'        => $contractId,
+                    'insured_patient_id' => $contractId ? ($validated['insured_patient_id'] ?? null) : null,
+                    'covered_amount'     => $coveredAmount,
+                    'patient_amount'     => $patientAmount,
                     'invoice_number'   => Branch::code() . '-INV-' . strtoupper(substr(uniqid(), -8)),
                     'total'            => $netTotal,
                     'discount'         => $discount,
