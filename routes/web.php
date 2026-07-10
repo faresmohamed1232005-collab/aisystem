@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\BranchReportController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
@@ -66,6 +67,10 @@ Route::middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // ===== Cross-branch central dashboard (Phase 4) =====
+    Route::get('/reports/branches', [BranchReportController::class, 'index'])
+        ->middleware('can:view_reports')->name('reports.branches');
 
     // ===== Products =====
     // search لازم قبل resource دايماً
