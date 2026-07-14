@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * تحويلات المخزون بين فروع المالك الواحد (Phase 2ب).
  *
- * دورة الحياة: المصدر ينشئ (status=sent، خصم مخزون المصدر) → المزامنة تنقله للوجهة →
- * الوجهة تستلم (إضافة مخزونها) أو ترفض. كل جهاز يعدّل مخزون فرعه فقط (branch-scoped).
+ * دورة الحياة: المصدر ينشئ (status=draft، بلا خصم) → يعتمد (approved) → يرسل (sent،
+ * خصم مخزون المصدر) → المزامنة تنقله للوجهة → الوجهة تستلم (إضافة مخزونها) أو ترفض.
+ * كل جهاز يعدّل مخزون فرعه فقط (branch-scoped).
  */
 class StockTransferController extends Controller
 {
@@ -103,22 +104,22 @@ class StockTransferController extends Controller
         }
 
         try {
+            // إنشاء كمسودة (draft) بلا خصم مخزون — الخصم يتم عند الإرسال (send).
+            // نتحقق من التوفّر هنا كتحذير فقط لتحسين تجربة المستخدم؛ التحقق الصارم يتكرر في send.
             $transfer = DB::transaction(function () use ($data, $me, $owner) {
                 $transfer = StockTransfer::create([
                     'user_id'         => $owner,
                     'from_branch_id'  => $me,
                     'to_branch_id'    => $data['to_branch_id'],
                     'transfer_number' => StockTransfer::generateNumber($owner, Branch::code()),
-                    'status'          => 'sent',
+                    'status'          => 'draft',
                     'notes'           => $data['notes'] ?? null,
-                    'sent_at'         => now(),
                 ]);
 
                 foreach ($data['items'] as $line) {
                     $inv = UserDrugInventory::where('user_id', $owner)
                         ->currentBranch()
                         ->where('id', $line['inventory_id'])
-                        ->lockForUpdate()
                         ->first();
 
                     if (! $inv) {
@@ -131,10 +132,7 @@ class StockTransferController extends Controller
                         throw new \RuntimeException("الكمية المطلوبة من \"{$name}\" أكبر من المتاح ({$inv->quantity})");
                     }
 
-                    // خصم من باتش المصدر المحدَّد (سلامة الباتش: نفس الدواء+الصلاحية).
-                    $inv->quantity = (float) $inv->quantity - $qty;
-                    $inv->save();
-
+                    // نسجّل الباتش المصدر (دواء+صلاحية+تكلفة) دون خصم — الخصم عند الإرسال.
                     StockTransferItem::create([
                         'user_id'     => $owner,
                         'transfer_id' => $transfer->id,
@@ -151,8 +149,75 @@ class StockTransferController extends Controller
             return back()->withInput()->withErrors(['items' => $e->getMessage()]);
         }
 
-        return redirect()->route('stock-transfers.show', $transfer)
-            ->with('success', 'تم إنشاء التحويل وإرساله للفرع الوجهة!');
+        return redirect()->route('stock-transfers.index')
+            ->with('success', 'تم إنشاء التحويل كمسودة. اعتمده ثم أرسله.');
+    }
+
+    /** اعتماد التحويل (المصدر فقط): draft → approved. */
+    public function approve(StockTransfer $stockTransfer)
+    {
+        abort_if($stockTransfer->user_id !== Auth::id(), 403);
+        abort_if($stockTransfer->from_branch_id !== Branch::id(), 403, 'الاعتماد من فرع المصدر فقط');
+        abort_if($stockTransfer->status !== 'draft', 422, 'لا يمكن اعتماد هذا التحويل');
+
+        $stockTransfer->update([
+            'status'      => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        return redirect()->route('stock-transfers.show', $stockTransfer)
+            ->with('success', 'تم اعتماد التحويل. يمكنك الآن إرساله.');
+    }
+
+    /** إرسال التحويل (المصدر فقط): approved → sent + خصم مخزون المصدر (نقطة الخصم الفعلية). */
+    public function send(StockTransfer $stockTransfer)
+    {
+        abort_if($stockTransfer->user_id !== Auth::id(), 403);
+        abort_if($stockTransfer->from_branch_id !== Branch::id(), 403, 'الإرسال من فرع المصدر فقط');
+        abort_if($stockTransfer->status !== 'approved', 422, 'لا يمكن إرسال هذا التحويل');
+
+        $owner = Auth::id();
+
+        try {
+            DB::transaction(function () use ($stockTransfer, $owner) {
+                foreach ($stockTransfer->items as $item) {
+                    // نختار باتش المصدر المطابق (نفس الدواء+الصلاحية) بقفل للتحديث.
+                    // ملاحظة: expiry_date مُحوَّل لكائن Carbon في الـ item، لذا نقارن التاريخ فقط
+                    // (whereDate) لتفادي عدم تطابق '2027-01-01' مع '2027-01-01 00:00:00'.
+                    $inv = UserDrugInventory::where('user_id', $owner)
+                        ->currentBranch()
+                        ->where('drug_id', $item->drug_id)
+                        ->when(
+                            $item->expiry_date !== null,
+                            fn ($q) => $q->whereDate('expiry_date', $item->expiry_date),
+                            fn ($q) => $q->whereNull('expiry_date')
+                        )
+                        ->lockForUpdate()
+                        ->first();
+
+                    $qty = (float) $item->quantity;
+                    if (! $inv || $qty > (float) $inv->quantity) {
+                        $name = optional(Drug::find($item->drug_id))->name_ar ?? 'الصنف';
+                        $available = $inv ? $inv->quantity : 0;
+                        throw new \RuntimeException("الكمية المطلوبة من \"{$name}\" أكبر من المتاح ({$available})");
+                    }
+
+                    $inv->quantity = (float) $inv->quantity - $qty;
+                    $inv->save();
+                }
+
+                $stockTransfer->update([
+                    'status'  => 'sent',
+                    'sent_at' => now(),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return redirect()->route('stock-transfers.show', $stockTransfer)
+                ->withErrors(['send' => $e->getMessage()]);
+        }
+
+        return redirect()->route('stock-transfers.show', $stockTransfer)
+            ->with('success', 'تم إرسال التحويل وخصم مخزون فرعك!');
     }
 
     public function show(StockTransfer $stockTransfer)
@@ -251,6 +316,19 @@ class StockTransferController extends Controller
         // ملاحظة: إرجاع مخزون المصدر يتم من جهة فرع المصدر (يرى التحويل مرفوضاً) — Phase لاحقة.
         return redirect()->route('stock-transfers.show', $stockTransfer)
             ->with('success', 'تم رفض التحويل.');
+    }
+
+    /** حذف مسودة تحويل (المصدر فقط، على حالة draft — قبل الاعتماد/الإرسال). */
+    public function destroy(StockTransfer $stockTransfer)
+    {
+        abort_if($stockTransfer->user_id !== Auth::id(), 403);
+        abort_if($stockTransfer->from_branch_id !== Branch::id(), 403, 'الحذف من فرع المصدر فقط');
+        abort_if($stockTransfer->status !== 'draft', 422, 'لا يمكن حذف تحويل بعد اعتماده');
+
+        $stockTransfer->delete(); // soft delete (Syncable)
+
+        return redirect()->route('stock-transfers.index')
+            ->with('success', 'تم حذف المسودة.');
     }
 
     /** اقتراح فرع بديل: فروع أخرى لديها مخزون من دواء (من لقطات المخزون). */

@@ -26,18 +26,16 @@ class InsuredPatientController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // كل عقود التأمين (للفلتر أعلى الشاشة).
         $contracts = Contract::where('user_id', Auth::id())
             ->where('type', 'insurance')
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
 
-        return view('insured-patients.index', compact('patients', 'contracts', 'q', 'contractId'));
-    }
+        // العقود النشطة فقط (للـ panel/modal الجديدين — كانت في create/edit).
+        $activeContracts = $this->insuranceContracts();
 
-    public function create()
-    {
-        $contracts = $this->insuranceContracts();
-        return view('insured-patients.create', compact('contracts'));
+        return view('insured-patients.index', compact('patients', 'contracts', 'activeContracts', 'q', 'contractId'));
     }
 
     public function store(Request $request)
@@ -49,13 +47,6 @@ class InsuredPatientController extends Controller
 
         return redirect()->route('insured-patients.index')
             ->with('success', 'تم إضافة المريض المؤمّن عليه!');
-    }
-
-    public function edit(InsuredPatient $insuredPatient)
-    {
-        abort_if($insuredPatient->user_id !== Auth::id(), 403);
-        $contracts = $this->insuranceContracts();
-        return view('insured-patients.edit', compact('insuredPatient', 'contracts'));
     }
 
     public function update(Request $request, InsuredPatient $insuredPatient)

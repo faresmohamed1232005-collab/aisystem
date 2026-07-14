@@ -29,8 +29,9 @@ class InsuranceUiTest extends TestCase
     {
         $user = $this->owner();
 
-        $this->actingAs($user)->get(route('contracts.index'))->assertOk();
-        $this->actingAs($user)->get(route('contracts.create'))->assertOk();
+        // شاشة index وحدها فيها panel الإضافة + modal التعديل (نمط الموظفين).
+        $this->actingAs($user)->get(route('contracts.index'))->assertOk()
+            ->assertSee('add-form-wrap', false); // panel الإضافة موجود
 
         // إنشاء عقد تأمين → يُنشئ قاعدة تأمين افتراضية
         $this->actingAs($user)->post(route('contracts.store'), [
@@ -41,7 +42,9 @@ class InsuranceUiTest extends TestCase
         $this->assertNotNull($contract->insuranceRule, 'قاعدة تأمين افتراضية تُنشأ مع عقد التأمين');
 
         $this->actingAs($user)->get(route('contracts.show', $contract))->assertOk()->assertSee('قواعد التأمين');
-        $this->actingAs($user)->get(route('contracts.edit', $contract))->assertOk();
+        // modal التعديل موجود على index مع action الـ update للعقد.
+        $this->actingAs($user)->get(route('contracts.index'))->assertOk()
+            ->assertSee('edit-modal-'.$contract->id, false);
 
         // حفظ قواعد التأمين + قاعدة تسعير
         $this->actingAs($user)->post(route('contracts.insurance-rule', $contract), [
@@ -63,15 +66,18 @@ class InsuranceUiTest extends TestCase
             'type' => 'insurance', 'name' => 'Globe Med', 'status' => 'active',
         ]);
 
-        $this->actingAs($user)->get(route('insured-patients.index'))->assertOk();
-        $this->actingAs($user)->get(route('insured-patients.create'))->assertOk();
+        // شاشة index فيها panel الإضافة + modal التعديل (نمط الموظفين).
+        $this->actingAs($user)->get(route('insured-patients.index'))->assertOk()
+            ->assertSee('add-form-wrap', false);
 
         $this->actingAs($user)->post(route('insured-patients.store'), [
             'contract_id' => $contract->id, 'name' => 'أحمد', 'card_number' => 'C-1',
         ])->assertRedirect();
 
         $patient = InsuredPatient::where('user_id', $user->id)->firstOrFail();
-        $this->actingAs($user)->get(route('insured-patients.edit', $patient))->assertOk();
+        $this->actingAs($user)->get(route('insured-patients.index'))->assertOk()
+            ->assertSee('data-update-url', false)
+            ->assertSee('أحمد');
 
         // بحث AJAX مقيّد بالعقد
         $this->actingAs($user)

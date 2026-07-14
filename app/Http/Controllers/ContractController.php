@@ -31,11 +31,6 @@ class ContractController extends Controller
         return view('contracts.index', compact('contracts', 'q', 'type'));
     }
 
-    public function create()
-    {
-        return view('contracts.create');
-    }
-
     public function store(Request $request)
     {
         $data = $this->validateContract($request);
@@ -60,7 +55,7 @@ class ContractController extends Controller
             ]);
         }
 
-        return redirect()->route('contracts.show', $contract)
+        return redirect()->route('contracts.index')
             ->with('success', 'تم إضافة العقد بنجاح!');
     }
 
@@ -74,12 +69,6 @@ class ContractController extends Controller
             'contract'   => $contract,
             'categories' => PricingRule::CATEGORIES,
         ]);
-    }
-
-    public function edit(Contract $contract)
-    {
-        abort_if($contract->user_id !== Auth::id(), 403);
-        return view('contracts.edit', compact('contract'));
     }
 
     public function update(Request $request, Contract $contract)
@@ -97,7 +86,7 @@ class ContractController extends Controller
 
         $contract->update($data);
 
-        return redirect()->route('contracts.show', $contract)
+        return redirect()->route('contracts.index')
             ->with('success', 'تم تحديث بيانات العقد!');
     }
 

@@ -107,7 +107,9 @@
     </div>
     @endif
 </div>
+@endsection
 
+@section('scripts')
 <script>
     (function () {
         const checkAll = document.getElementById('check-all');

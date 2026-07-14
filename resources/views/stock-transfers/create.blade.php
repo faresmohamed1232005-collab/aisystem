@@ -78,7 +78,9 @@
         </div>
     </form>
 </div>
+@endsection
 
+@section('scripts')
 <script>
     let searchTimer = null;
     const cart = new Map(); // inventory_id => {name, expiry, available, qty}

@@ -100,7 +100,7 @@ class InsuranceClaimController extends Controller
             return $claim;
         });
 
-        return redirect()->route('insurance-claims.show', $claim)
+        return redirect()->route('insurance-claims.index')
             ->with('success', 'تم إنشاء المطالبة بنجاح!');
     }
 

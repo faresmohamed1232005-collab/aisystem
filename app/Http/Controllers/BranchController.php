@@ -55,12 +55,6 @@ class BranchController extends Controller
         return view('branches.show', compact('branch', 'items', 'inventoryStats'));
     }
 
-    public function edit(BranchModel $branch)
-    {
-        abort_if($branch->user_id !== Auth::id(), 403);
-        return view('branches.edit', compact('branch'));
-    }
-
     public function update(Request $request, BranchModel $branch)
     {
         abort_if($branch->user_id !== Auth::id(), 403);
@@ -84,7 +78,7 @@ class BranchController extends Controller
 
         $branch->update($data);
 
-        return redirect()->route('branches.show', $branch)
+        return redirect()->route('branches.index')
             ->with('success', 'تم تحديث بيانات الفرع!');
     }
 }

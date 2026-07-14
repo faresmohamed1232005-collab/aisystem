@@ -319,7 +319,7 @@
                 <a href="{{ route('reports.branches') }}"
                     class="nav-item {{ request()->routeIs('reports.branches') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
-                    <i class="fas fa-chart-pie w-5 text-center text-emerald-400"></i> تقارير الفروع
+                    <i class="fas fa-chart-pie w-5 text-center text-indigo-400"></i> تقارير الفروع
                 </a>
                 <a href="{{ route('sales.report') }}"
                     class="nav-item {{ request()->routeIs('sales.report') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"

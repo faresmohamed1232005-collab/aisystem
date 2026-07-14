@@ -7,7 +7,9 @@
         'syndicate'  => 'نقابة', 'hospital' => 'مستشفى', 'university' => 'جامعة',
     ];
     $statusBadge = [
-        'active' => ['نشط', 'green'], 'suspended' => ['موقوف', 'amber'], 'expired' => ['منتهي', 'red'],
+        'active'    => ['نشط', 'bg-green-100 text-green-700'],
+        'suspended' => ['موقوف', 'bg-amber-100 text-amber-700'],
+        'expired'   => ['منتهي', 'bg-red-100 text-red-700'],
     ];
     $catLabels = [
         'medicines' => 'أدوية', 'cosmetics' => 'مستحضرات تجميل',
@@ -25,11 +27,12 @@
             <a href="{{ route('contracts.index') }}" class="text-gray-400 hover:text-gray-600"><i class="fas fa-arrow-right"></i></a>
             <h2 class="text-xl font-bold text-gray-800">{{ $contract->name }}</h2>
             <span class="font-mono text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">{{ $contract->code }}</span>
-            @php($sb = $statusBadge[$contract->status] ?? [$contract->status, 'gray'])
-            <span class="bg-{{ $sb[1] }}-50 text-{{ $sb[1] }}-600 text-xs px-2 py-1 rounded-full font-semibold">{{ $sb[0] }}</span>
+            @php($sb = $statusBadge[$contract->status] ?? [$contract->status, 'bg-gray-100 text-gray-700'])
+            <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $sb[1] }}">{{ $sb[0] }}</span>
         </div>
-        <a href="{{ route('contracts.edit', $contract) }}"
-           class="bg-amber-50 hover:bg-amber-100 text-amber-600 px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+        <a href="{{ route('contracts.index') }}"
+           class="bg-amber-50 hover:bg-amber-100 text-amber-600 px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2"
+           title="تعديل هذا العقد من قائمة التعاقدات">
             <i class="fas fa-edit"></i> تعديل
         </a>
     </div>

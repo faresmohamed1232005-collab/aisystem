@@ -3,7 +3,10 @@
 
 @php
     $typeLabels = ['pharmacy' => 'صيدلية', 'warehouse' => 'مخزن', 'office' => 'مكتب'];
-    $statusBadge = ['active' => ['نشط', 'green'], 'stopped' => ['متوقف', 'red']];
+    $statusBadge = [
+        'active'  => ['نشط', 'bg-green-100 text-green-700'],
+        'stopped' => ['متوقف', 'bg-red-100 text-red-700'],
+    ];
     $flags = [
         'allow_transfer_out' => 'تحويل صادر',
         'allow_transfer_in'  => 'تحويل وارد',
@@ -20,10 +23,11 @@
             <a href="{{ route('branches.index') }}" class="text-gray-400 hover:text-gray-600"><i class="fas fa-arrow-right"></i></a>
             <h2 class="text-xl font-bold text-gray-800">{{ $branch->name ?? '— بلا اسم —' }}</h2>
             <span class="font-mono text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">{{ $branch->code }}</span>
-            @php($sb = $statusBadge[$branch->status] ?? [$branch->status, 'gray'])
-            <span class="bg-{{ $sb[1] }}-50 text-{{ $sb[1] }}-600 text-xs px-2 py-1 rounded-full font-semibold">{{ $sb[0] }}</span>
+            @php($sb = $statusBadge[$branch->status] ?? [$branch->status, 'bg-gray-100 text-gray-700'])
+            <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $sb[1] }}">{{ $sb[0] }}</span>
         </div>
-        <a href="{{ route('branches.edit', $branch) }}" class="bg-amber-50 hover:bg-amber-100 text-amber-600 px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+        <a href="{{ route('branches.index') }}" class="bg-amber-50 hover:bg-amber-100 text-amber-600 px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2"
+           title="تعديل هذا الفرع من قائمة الفروع">
             <i class="fas fa-edit"></i> تعديل
         </a>
     </div>
@@ -43,7 +47,7 @@
         <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-toggle-on text-indigo-500"></i> الصلاحيات</h3>
         <div class="flex flex-wrap gap-2">
             @foreach($flags as $key => $label)
-                <span class="text-xs px-3 py-1.5 rounded-full font-semibold {{ $branch->$key ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400' }}">
+                <span class="text-xs px-3 py-1.5 rounded-full font-semibold {{ $branch->$key ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400' }}">
                     <i class="fas fa-{{ $branch->$key ? 'check' : 'xmark' }}"></i> {{ $label }}
                 </span>
             @endforeach

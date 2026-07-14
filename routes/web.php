@@ -132,11 +132,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/contracts/{contract}/insurance-rule', [ContractController::class, 'saveInsuranceRule'])->name('contracts.insurance-rule');
         Route::post('/contracts/{contract}/pricing-rules', [ContractController::class, 'addPricingRule'])->name('contracts.pricing-rules.store');
         Route::delete('/contracts/{contract}/pricing-rules/{pricingRule}', [ContractController::class, 'deletePricingRule'])->name('contracts.pricing-rules.destroy');
-        Route::resource('contracts', ContractController::class);
+        Route::resource('contracts', ContractController::class)->except(['create', 'edit']);
 
         // المرضى المؤمّن عليهم
         Route::get('/insured-patients/search', [InsuredPatientController::class, 'search'])->name('insured-patients.search');
-        Route::resource('insured-patients', InsuredPatientController::class)->except(['show']);
+        Route::resource('insured-patients', InsuredPatientController::class)->only(['index', 'store', 'update', 'destroy']);
 
         // مطالبات التأمين
         Route::patch('/insurance-claims/{insuranceClaim}/status', [InsuranceClaimController::class, 'updateStatus'])->name('insurance-claims.status');
@@ -156,7 +156,7 @@ Route::middleware('auth')->group(function () {
     // ===== الفروع والتحويلات (Phase 2ب) =====
     // إدارة الفروع (صلاحية: manage_branches)
     Route::middleware('can:manage_branches')->group(function () {
-        Route::resource('branches', BranchController::class)->only(['index', 'show', 'edit', 'update']);
+        Route::resource('branches', BranchController::class)->only(['index', 'show', 'update']);
     });
 
     // تحويلات المخزون — AJAX قبل الـ wildcard دايماً
@@ -168,6 +168,11 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:create_transfers')->group(function () {
         Route::get('/stock-transfers/create', [StockTransferController::class, 'create'])->name('stock-transfers.create');
         Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+        // اعتماد/إرسال التحويل (المصدر): draft → approved → sent (خصم المخزون).
+        Route::post('/stock-transfers/{stockTransfer}/approve', [StockTransferController::class, 'approve'])->name('stock-transfers.approve');
+        Route::post('/stock-transfers/{stockTransfer}/send', [StockTransferController::class, 'send'])->name('stock-transfers.send');
+        // حذف مسودة (المصدر): draft فقط.
+        Route::delete('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])->name('stock-transfers.destroy');
     });
     Route::middleware('can:receive_transfers')->group(function () {
         Route::get('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive');

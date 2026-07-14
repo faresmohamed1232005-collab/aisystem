@@ -11,7 +11,7 @@
             @endforeach
         </select>
         @if($contracts->isEmpty())
-            <p class="text-xs text-amber-600 mt-1">لا يوجد عقود تأمين نشطة — <a href="{{ route('contracts.create') }}" class="underline">أضف عقداً أولاً</a>.</p>
+            <p class="text-xs text-amber-600 mt-1">لا يوجد عقود تأمين نشطة — <a href="{{ route('contracts.index') }}" class="underline">أضف عقداً أولاً</a>.</p>
         @endif
     </div>
 

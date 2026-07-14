@@ -3,8 +3,11 @@
 
 @php
     $statusBadge = [
-        'draft' => ['مسودة', 'gray'], 'sent' => ['مُرسل', 'blue'],
-        'received' => ['مُستلم', 'green'], 'rejected' => ['مرفوض', 'red'],
+        'draft'    => ['مسودة', 'bg-gray-100 text-gray-700'],
+        'approved' => ['معتمد', 'bg-amber-100 text-amber-700'],
+        'sent'     => ['مُرسل', 'bg-blue-100 text-blue-700'],
+        'received' => ['مُستلم', 'bg-green-100 text-green-700'],
+        'rejected' => ['مرفوض', 'bg-red-100 text-red-700'],
     ];
     $bn = $branchNames ?? collect();
 @endphp
@@ -12,8 +15,22 @@
 @section('content')
 <div class="space-y-6">
 
+    @if(session('success'))
+    <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <i class="fas fa-check-circle"></i> {{ session('success') }}
+    </div>
+    @endif
+    @if(session('error'))
+    <div class="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <i class="fas fa-exclamation-circle"></i> {{ session('error') }}
+    </div>
+    @endif
+
     <div class="flex items-center justify-between">
-        <h2 class="text-xl font-bold text-gray-800">تحويلات المخزون</h2>
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold text-gray-800">تحويلات المخزون</h2>
+            <span class="bg-indigo-100 text-indigo-700 text-sm px-3 py-1 rounded-full font-semibold">{{ $outgoing->total() + $incoming->total() }}</span>
+        </div>
         <a href="{{ route('stock-transfers.create') }}"
            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
             <i class="fas fa-plus"></i> تحويل جديد
@@ -57,15 +74,22 @@
                     <td class="px-4 py-3"><span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">{{ $t->items_count }}</span></td>
                     <td class="px-4 py-3 text-gray-500">{{ $t->created_at->format('Y-m-d') }}</td>
                     <td class="px-4 py-3">
-                        @php($b = $statusBadge[$t->status] ?? [$t->status, 'gray'])
-                        <span class="bg-{{ $b[1] }}-50 text-{{ $b[1] }}-600 text-xs px-2 py-1 rounded-full font-semibold">{{ $b[0] }}</span>
+                        @php($b = $statusBadge[$t->status] ?? [$t->status, 'bg-gray-100 text-gray-700'])
+                        <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $b[1] }}">{{ $b[0] }}</span>
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
                             @if($tab === 'incoming' && $t->status === 'sent')
-                            <a href="{{ route('stock-transfers.receive', $t) }}" class="text-green-600 hover:text-green-700 text-xs px-2 py-1 bg-green-50 rounded-lg transition font-semibold">استلام</a>
+                            <a href="{{ route('stock-transfers.receive', $t) }}" title="استلام" class="text-green-600 hover:text-green-700 text-xs px-2 py-1 bg-green-50 rounded-lg transition"><i class="fas fa-box-open"></i></a>
                             @endif
-                            <a href="{{ route('stock-transfers.show', $t) }}" class="text-indigo-500 hover:text-indigo-700 text-xs px-2 py-1 bg-indigo-50 rounded-lg transition"><i class="fas fa-eye"></i></a>
+                            @if($tab === 'outgoing' && $t->status === 'draft')
+                            <form action="{{ route('stock-transfers.approve', $t) }}" method="POST" class="inline" onsubmit="return confirm('اعتماد التحويل؟')">@csrf<button type="submit" title="اعتماد" class="text-amber-600 hover:text-amber-700 text-xs px-2 py-1 bg-amber-50 rounded-lg transition"><i class="fas fa-check-double"></i></button></form>
+                            <form action="{{ route('stock-transfers.destroy', $t) }}" method="POST" class="inline" onsubmit="return confirm('حذف المسودة؟')">@csrf @method('DELETE')<button type="submit" title="حذف المسودة" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 bg-red-50 rounded-lg transition"><i class="fas fa-trash"></i></button></form>
+                            @endif
+                            @if($tab === 'outgoing' && $t->status === 'approved')
+                            <form action="{{ route('stock-transfers.send', $t) }}" method="POST" class="inline" onsubmit="return confirm('سيتم خصم الكميات من مخزون فرعك. تأكيد الإرسال؟')">@csrf<button type="submit" title="إرسال" class="text-blue-600 hover:text-blue-700 text-xs px-2 py-1 bg-blue-50 rounded-lg transition"><i class="fas fa-paper-plane"></i></button></form>
+                            @endif
+                            <a href="{{ route('stock-transfers.show', $t) }}" title="عرض" class="text-indigo-500 hover:text-indigo-700 text-xs px-2 py-1 bg-indigo-50 rounded-lg transition"><i class="fas fa-eye"></i></a>
                         </div>
                     </td>
                 </tr>

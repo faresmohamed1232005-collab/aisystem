@@ -3,15 +3,26 @@
 
 @php
     $statusBadge = [
-        'draft'     => ['مسودة', 'gray'],
-        'submitted' => ['مُرسلة', 'blue'],
-        'paid'      => ['مسددة', 'green'],
-        'rejected'  => ['مرفوضة', 'red'],
+        'draft'     => ['مسودة', 'bg-gray-100 text-gray-700'],
+        'submitted' => ['مُرسلة', 'bg-blue-100 text-blue-700'],
+        'paid'      => ['مسددة', 'bg-green-100 text-green-700'],
+        'rejected'  => ['مرفوضة', 'bg-red-100 text-red-700'],
     ];
 @endphp
 
 @section('content')
 <div class="space-y-6">
+
+    @if(session('success'))
+    <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <i class="fas fa-check-circle"></i> {{ session('success') }}
+    </div>
+    @endif
+    @if(session('error'))
+    <div class="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <i class="fas fa-exclamation-circle"></i> {{ session('error') }}
+    </div>
+    @endif
 
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -56,12 +67,21 @@
                     <td class="px-4 py-3 font-bold text-gray-800">{{ number_format($claim->amount, 2) }} ج.م</td>
                     <td class="px-4 py-3 text-gray-500">{{ optional($claim->claim_date)->format('Y-m-d') ?? '—' }}</td>
                     <td class="px-4 py-3">
-                        @php($b = $statusBadge[$claim->status] ?? [$claim->status, 'gray'])
-                        <span class="bg-{{ $b[1] }}-50 text-{{ $b[1] }}-600 text-xs px-2 py-1 rounded-full font-semibold">{{ $b[0] }}</span>
+                        @php($b = $statusBadge[$claim->status] ?? [$claim->status, 'bg-gray-100 text-gray-700'])
+                        <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $b[1] }}">{{ $b[0] }}</span>
                     </td>
                     <td class="px-4 py-3">
-                        <a href="{{ route('insurance-claims.show', $claim) }}"
-                           class="text-indigo-500 hover:text-indigo-700 text-xs px-2 py-1 bg-indigo-50 rounded-lg transition"><i class="fas fa-eye"></i></a>
+                        <div class="flex items-center gap-2">
+                            <a href="{{ route('insurance-claims.show', $claim) }}" title="عرض"
+                               class="text-indigo-500 hover:text-indigo-700 text-xs px-2 py-1 bg-indigo-50 rounded-lg transition"><i class="fas fa-eye"></i></a>
+                            @if($claim->status !== 'paid')
+                            <form action="{{ route('insurance-claims.destroy', $claim) }}" method="POST" class="inline"
+                                  onsubmit="return confirm('حذف المطالبة؟')">
+                                @csrf @method('DELETE')
+                                <button type="submit" title="حذف" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 bg-red-50 rounded-lg transition"><i class="fas fa-trash"></i></button>
+                            </form>
+                            @endif
+                        </div>
                     </td>
                 </tr>
                 @empty

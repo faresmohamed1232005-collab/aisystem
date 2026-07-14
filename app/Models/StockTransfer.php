@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * StockTransfer — تحويل مخزون بين فرعين لنفس المالك.
  *
- * دورة الحياة: draft → sent (خصم مخزون المصدر) → received (إضافة للوجهة) / rejected.
+ * دورة الحياة: draft (إنشاء بلا خصم) → approved (اعتماد المصدر) → sent (خصم مخزون
+ * المصدر) → received (إضافة للوجهة) / rejected. المصدر يعتمد ويرسل؛ الوجهة تستلم/ترفض.
  * bidirectional: الفرع المصدر ينشئه ويدفعه؛ الوجهة تسحبه وتضغط استلام وتدفعه؛ المصدر
  * يسحب التحديث. from/to_branch_id = branch_id الثابت (نص) لا FK.
  */
@@ -19,14 +20,15 @@ class StockTransfer extends Model
     use Syncable;
     use Auditable;
 
-    public const STATUSES = ['draft', 'sent', 'received', 'rejected'];
+    public const STATUSES = ['draft', 'approved', 'sent', 'received', 'rejected'];
 
     protected $fillable = [
         'user_id', 'from_branch_id', 'to_branch_id', 'transfer_number',
-        'status', 'notes', 'reject_reason', 'sent_at', 'received_at', 'branch_id',
+        'status', 'notes', 'reject_reason', 'approved_at', 'sent_at', 'received_at', 'branch_id',
     ];
 
     protected $casts = [
+        'approved_at' => 'datetime',
         'sent_at'     => 'datetime',
         'received_at' => 'datetime',
     ];

@@ -591,7 +591,7 @@ function buildPanelHTML(tid) {
                             <option value="">— اختر عقد التأمين —</option>
                             ${INSURANCE_CONTRACTS.map(c=>`<option value="${c.id}">${c.name} (${c.code})</option>`).join('')}
                         </select>
-                        ${INSURANCE_CONTRACTS.length===0?`<p class="text-xs text-amber-600 mt-1">لا يوجد عقود تأمين نشطة — <a href="/contracts/create" target="_blank" class="underline">أضف عقداً</a>.</p>`:''}
+                        ${INSURANCE_CONTRACTS.length===0?`<p class="text-xs text-amber-600 mt-1">لا يوجد عقود تأمين نشطة — <a href="/contracts" target="_blank" class="underline">أضف عقداً</a>.</p>`:''}
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500 mb-1">المريض المؤمّن عليه</label>
@@ -1084,7 +1084,7 @@ function searchPatients(tid, q) {
         try {
             tab._patients=await (await fetch(`/insured-patients/search?contract_id=${tab.selectedContract.id}&q=${encodeURIComponent(q)}`)).json();
             if (!tab._patients.length) {
-                rb.innerHTML=`<div class="p-4 text-center"><div class="text-gray-400 text-sm">لا يوجد مرضى</div><a href="/insured-patients/create" target="_blank" class="text-purple-500 text-xs hover:underline mt-1 block">+ إضافة مريض</a></div>`;
+                rb.innerHTML=`<div class="p-4 text-center"><div class="text-gray-400 text-sm">لا يوجد مرضى</div><a href="/insured-patients" target="_blank" class="text-purple-500 text-xs hover:underline mt-1 block">+ إضافة مريض</a></div>`;
             } else {
                 rb.innerHTML=tab._patients.map((p,pi)=>`
                     <div onclick="pickPatientByIndex(${tid},${pi})" class="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-50 last:border-0 transition">
