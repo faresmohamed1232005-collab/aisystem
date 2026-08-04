@@ -25,6 +25,18 @@
                     <i class="fas fa-plus"></i> تحديث كمية
                 </button>
             @endif
+            <div class="flex items-center gap-3">
+    <a href="{{ route('products.inventory.print') }}" target="_blank"
+        class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+        <i class="fas fa-file-pdf"></i> جرد المخزن
+    </a>
+    @if ($isAdmin)
+        <button onclick="openAddModal()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+            <i class="fas fa-plus"></i> تحديث كمية
+        </button>
+    @endif
+</div>
         </div>
 
         {{-- Stats --}}

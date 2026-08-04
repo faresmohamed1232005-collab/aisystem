@@ -236,4 +236,57 @@ class SuperAdminController extends Controller
 
     return back()->with('success', "✅ تم تغيير باسورد {$user->name} بنجاح");
 }
+
+
+public function salesReport(Request $request)
+{
+    $users = User::query()
+        ->when($request->search, fn($q) => $q->where('name', 'like', "%{$request->search}%")
+            ->orWhere('email', 'like', "%{$request->search}%")
+            ->orWhere('pharmacy_name', 'like', "%{$request->search}%")
+            ->orWhere('phone', 'like', "%{$request->search}%"))
+        ->when($request->status === 'approved', fn($q) => $q->where('is_approved', true))
+        ->when($request->status === 'unapproved', fn($q) => $q->where('is_approved', false))
+        ->when($request->gov, fn($q) => $q->where('governorate', $request->gov))
+        ->when($request->city, fn($q) => $q->where('city', $request->city))
+        ->get();
+
+    $userIds = $users->pluck('id');
+
+    // ── تفصيل كل دواء + الكمية المباعة، مجمّع على كل الصيدليات المطابقة للفلتر ──
+    $drugs = SaleItem::whereHas('sale', fn($q) => $q->whereIn('user_id', $userIds))
+        ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+        ->join('drugs', 'sale_items.drug_id', '=', 'drugs.id')
+        ->selectRaw('
+            drugs.id                                                     as drug_id,
+            COALESCE(drugs.name_ar, drugs.name_en)                       as name,
+            drugs.category,
+            SUM(sale_items.quantity)                                     as total_qty,
+            SUM(sale_items.subtotal)                                     as total_revenue,
+            AVG(sale_items.price)                                        as avg_price,
+            COUNT(DISTINCT sales.user_id)                                as pharmacies_count
+        ')
+        ->groupBy('drugs.id', 'drugs.name_ar', 'drugs.name_en', 'drugs.category')
+        ->orderByDesc('total_qty')
+        ->get();
+
+    $grandQty     = $drugs->sum('total_qty');
+    $grandRevenue = $drugs->sum('total_revenue');
+    $filtersLabel = $this->buildFilterLabel($request);
+
+    return view('super-admin.sales-report-print', compact(
+        'drugs', 'grandQty', 'grandRevenue', 'filtersLabel'
+    ));
+}
+
+private function buildFilterLabel(Request $request): string
+{
+    $parts = [];
+    if ($request->gov)     $parts[] = "المحافظة: {$request->gov}";
+    if ($request->city)     $parts[] = "المركز: {$request->city}";
+    if ($request->status)   $parts[] = $request->status === 'approved' ? 'موافق عليهم' : 'في الانتظار';
+    if ($request->search)   $parts[] = "بحث: {$request->search}";
+
+    return $parts ? implode(' — ', $parts) : 'كل الصيدليات';
+}
 }

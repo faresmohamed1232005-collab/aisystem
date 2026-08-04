@@ -431,6 +431,10 @@
                         <i class="fas fa-times"></i> مسح
                     </a>
                 @endif
+                <button type="submit" formaction="{{ route('super.admin.sales-report') }}" formtarget="_blank"
+                    class="btn" style="background:#fdecea;color:#e33535;border-color:#fecaca">
+                    <i class="fas fa-file-pdf"></i> تقرير PDF
+                </button>
             </form>
         </div>
 
@@ -450,7 +454,7 @@
                         <tr>
                             <th>#</th>
                             <th>المستخدم</th>
-                           
+
                             <th>الصيدلية</th>
                             <th>المحافظة / المدينة</th>
                             <th>العنوان</th>
@@ -812,3 +816,4 @@
 </body>
 
 </html>
+

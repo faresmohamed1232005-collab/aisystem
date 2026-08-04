@@ -33,7 +33,16 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\StockTransferController;
 
 
+Route::get('/storage-link', function () {
+    Artisan::call('storage:link');
+    return 'storage linked successfully!';
+});
 
+
+Route::get('/migrate', function () {
+    Artisan::call('migrate');
+    return 'db migrated successfully!';
+});
 
 // ===== إعداد أول تشغيل (الديسكتوب) — بدون auth/guest، متاح قبل التسجيل =====
 Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
@@ -46,8 +55,17 @@ Route::post('/2fa', [LoginController::class, 'verifyTwoFactor'])->name('login.2f
 
 
 // ===== Guest =====
+// الصفحة الرئيسية (لاندينج بيدج) — متاحة للجميع
+Route::get('/', function () {
+    // لو المستخدم مسجّل دخول بالفعل، وديه على طول للداشبورد
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+    return view('landing');
+})->name('landing');
+
 Route::middleware('guest')->group(function () {
-    Route::get('/', [LoginController::class, 'showForm'])->name('login');
+    Route::get('/login', [LoginController::class, 'showForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.post');
     Route::get('/register', [RegisterController::class, 'showForm'])->name('register');
     Route::post('/register', [RegisterController::class, 'register'])->name('register.post');
@@ -294,3 +312,18 @@ Route::middleware(['auth', 'can:view_reports'])->group(function () {
 Route::get('/cron/check-market-prices', [MarketPriceCheckController::class, 'run']);
 
 
+Route::get('/products/inventory/print', [App\Http\Controllers\ProductsController::class, 'inventoryPrint'])
+    ->name('products.inventory.print')
+    ->middleware('auth');
+    
+    
+ Route::get('/dashboard/export', [App\Http\Controllers\DashboardController::class, 'export'])
+    ->name('dashboard.export')
+    ->middleware('auth');
+    
+    Route::patch('/dashboard/pharmacies/{pharmacy}/toggle', [App\Http\Controllers\DashboardController::class, 'togglePharmacy'])
+    ->name('dashboard.pharmacies.toggle')
+    ->middleware('auth');
+    
+    Route::get('/super/sales-report', [SuperAdminController::class, 'salesReport'])
+    ->name('super.admin.sales-report');

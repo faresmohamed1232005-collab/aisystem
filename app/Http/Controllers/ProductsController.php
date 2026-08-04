@@ -323,4 +323,46 @@ class ProductsController extends Controller
         $drug = Drug::find($request->drug_id);
         return response()->json(['success' => true, 'message' => "تم إضافة {$drug->name_ar} ✅"]);
     }
+    
+    public function inventoryPrint()
+{
+    $userId = Auth::id();
+
+    $products = DB::table('drugs')
+        ->joinSub($this->inventorySubquery($userId), 'inv', function ($join) {
+            $join->on('inv.drug_id', '=', 'drugs.id');
+        })
+        ->select(
+            'drugs.name_ar',
+            'drugs.name_en',
+            'drugs.barcode',
+            'drugs.major_units',
+            'drugs.minor_units',
+            'inv.quantity',
+            'inv.custom_price',
+            'inv.expiry_date',
+            DB::raw("COALESCE(inv.strip_unit_name, 'شريط') as strip_unit_name"),
+        )
+        ->orderBy('drugs.name_ar')
+        ->get()
+        ->map(function ($row) {
+            $row->qty_display = self::formatBoxStrip(
+                (float) $row->quantity,
+                max(1, (int) $row->major_units),
+                $row->strip_unit_name
+            );
+            $row->total_value = (float) $row->quantity * (float) ($row->custom_price ?? 0);
+            return $row;
+        });
+
+    $totalItems    = $products->count();
+    $totalQuantity = $products->sum('quantity');
+    $totalValue    = $products->sum('total_value');
+    $reportDate    = now()->format('Y-m-d H:i');
+    $userName      = Auth::user()->name ?? '—';
+
+    return view('products.inventory-print', compact(
+        'products', 'totalItems', 'totalQuantity', 'totalValue', 'reportDate', 'userName'
+    ));
+}
 }
