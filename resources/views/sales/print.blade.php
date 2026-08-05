@@ -6,10 +6,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة مبيعات #{{ $sale->invoice_number }}</title>
+    @vite('resources/css/app.css')
     <style>
-        /* ===== خطوط ===== */
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-
         /* ===== ريسيت ===== */
         *,
         *::before,
@@ -402,8 +400,11 @@
                 <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
                 <rect x="6" y="14" width="12" height="8" rx="1" />
             </svg>
-            طباعة الفاتورة
+            طباعة A4
         </button>
+        <a href="{{ route('sales.print', ['sale' => $sale, 'format' => 'receipt']) }}" class="btn-back">
+            طباعة Receipt 80mm
+        </a>
         <a href="{{ url()->previous() }}" class="btn-back">
             ← رجوع
         </a>

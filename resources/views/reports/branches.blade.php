@@ -202,8 +202,8 @@
 
 @section('scripts')
 @if($branches->isNotEmpty())
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+document.addEventListener('chart-ready', function () {
 const bLabels  = @json($chartLabels);
 const bRevenue = @json($chartRevenue);
 const bProfit  = @json($chartProfit);
@@ -222,6 +222,7 @@ new Chart(document.getElementById('branchChart'), {
         plugins: { legend: { position: 'bottom' } },
         scales: { y: { beginAtZero: true } },
     },
+});
 });
 </script>
 @endif

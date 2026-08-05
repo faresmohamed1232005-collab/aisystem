@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>مرتجع {{ $saleReturn->return_number }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    @vite('resources/css/app.css')
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
         body { background: #fff; color: #111; direction: rtl; padding: 30px; }

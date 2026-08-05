@@ -7,6 +7,7 @@ use App\Models\PurchaseInvoiceItem;
 use App\Models\Supplier;
 use App\Models\Drug;
 use App\Models\UserDrugInventory;
+use App\Support\PurchaseExpiry;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -68,6 +69,23 @@ class PurchaseInvoiceController extends Controller
     /* ========================= STORE ========================= */
     public function store(Request $request)
     {
+        $request->merge([
+            'items' => collect($request->input('items', []))->map(function ($item) {
+                $item['product_name'] = trim((string) ($item['product_name'] ?? ''));
+                $item['barcode'] = filled($item['barcode'] ?? null)
+                    ? trim((string) $item['barcode'])
+                    : null;
+
+                try {
+                    $item['expiry_date'] = PurchaseExpiry::normalize($item['expiry_date'] ?? null);
+                } catch (\InvalidArgumentException $e) {
+                    $item['expiry_date'] = $item['expiry_date'] ?? null;
+                }
+
+                return $item;
+            })->all(),
+        ]);
+
         $validated = $request->validate([
             'supplier_id'            => 'nullable|integer|exists:suppliers,id',
             'invoice_number'         => 'required|string|max:100',
@@ -84,7 +102,7 @@ class PurchaseInvoiceController extends Controller
             'items.*.purchase_price' => 'required|numeric|min:0',
             'items.*.selling_price'  => 'required|numeric|min:0',
             'items.*.quantity'       => 'required|numeric|min:0.0001',
-            'items.*.expiry_date'    => 'nullable|date',
+            'items.*.expiry_date'    => 'required|date_format:Y-m-d',
             'items.*.major_units'    => 'nullable|integer|min:1',
             'items.*.minor_units'    => 'nullable|integer|min:1',
         ]);
@@ -144,16 +162,17 @@ class PurchaseInvoiceController extends Controller
 
                     $drug = null;
 
-                    // ① البحث بالباركود أولاً
+                    // ① البحث بالباركود أولاً، مع تجاهل المسافات القديمة في الكتالوج
                     if (!empty($item['barcode'])) {
-                        $drug = Drug::where('barcode', $item['barcode'])->first();
+                        $drug = Drug::whereRaw('TRIM(barcode) = ?', [$item['barcode']])->first();
                     }
 
-                    // ② البحث بالاسم لو ما لقاش بالباركود
+                    // ② البحث بالاسم لو ما لقاش بالباركود، مع تجاهل المسافات القديمة
                     if (!$drug) {
-                        $drug = Drug::where('name_ar', $item['product_name'])
-                            ->orWhere('name_en', $item['product_name'])
-                            ->first();
+                        $drug = Drug::where(function ($query) use ($item) {
+                            $query->whereRaw('TRIM(name_ar) = ?', [$item['product_name']])
+                                ->orWhereRaw('TRIM(name_en) = ?', [$item['product_name']]);
+                        })->first();
                     }
 
                     if (!$drug) {
@@ -217,10 +236,14 @@ class PurchaseInvoiceController extends Controller
                     PurchaseInvoiceItem::create([
                         'purchase_invoice_id' => $invoice->id,
                         'product_id'          => null,
+                        'drug_id'             => $drug->id,
                         'product_name'        => $item['product_name'],
+                        'category'            => $item['category'],
+                        'barcode'             => $item['barcode'],
                         'quantity'            => $item['quantity'],
                         'purchase_price'      => $item['purchase_price'],
                         'selling_price'       => $item['selling_price'],
+                        'expiry_date'         => $item['expiry_date'],
                         'subtotal'            => $item['subtotal'],
                     ]);
                 }

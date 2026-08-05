@@ -180,7 +180,7 @@ const toastConfig = {
     pending: { icon:'fa-clock',         border:'#BA7517', iconBg:'#FAEEDA', iconColor:'#854F0B', barColor:'#BA7517' },
     error:   { icon:'fa-exclamation-circle', border:'#E24B4A', iconBg:'#FCEBEB', iconColor:'#A32D2D', barColor:'#E24B4A' },
 };
-function showToast(type, title, msg, pendingLink=false) {
+function showToast(type, title, msg, pendingLink=false, saleId=null) {
     const cfg = toastConfig[type] || toastConfig.success;
     const t = document.createElement('div');
     t.setAttribute('data-toast','');
@@ -197,6 +197,7 @@ function showToast(type, title, msg, pendingLink=false) {
             <p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#1a1a1a;">${title}</p>
             <p style="margin:0;font-size:12px;color:#666;">${msg}</p>
             ${pendingLink?`<a href="{{ route('pending.index') }}" style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;font-weight:600;color:#185FA5;text-decoration:none;"><i class="fas fa-arrow-left" style="font-size:10px;"></i>عرض الطلبات</a>`:''}
+            ${saleId?`<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;"><a href="/sales/${saleId}/print?format=receipt" target="_blank" style="font-size:11px;font-weight:700;color:#0F6E56;text-decoration:none;background:#E1F5EE;padding:4px 7px;border-radius:6px;">Receipt 80mm</a><a href="/sales/${saleId}/print?format=a4" target="_blank" style="font-size:11px;font-weight:700;color:#3730a3;text-decoration:none;background:#e0e7ff;padding:4px 7px;border-radius:6px;">A4</a></div>`:''}
         </div>
         <button onclick="dismissToast(this)" style="background:none;border:none;cursor:pointer;font-size:12px;color:#aaa;padding:2px 4px;flex-shrink:0;">
             <i class="fas fa-times"></i></button>
@@ -1275,7 +1276,7 @@ async function completeSale(tid) {
     btns.forEach(id=>{ const b=document.getElementById(id); if(b){b.disabled=true;b.innerHTML='<i class="fas fa-spinner fa-spin ml-2"></i> جاري...';} });
     try {
         const d=await (await fetch('/sales',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':token},body:JSON.stringify({...buildPayload(tid,token),paid:tab.selectedPayment==='deferred'?0:(paid||0),payment_method:tab.selectedPayment,card_type:tab.selectedCard})})).json();
-        if (d.success) { showToast('success','تمت عملية البيع!',d.message); resetForm(tid); }
+        if (d.success) { showToast('success','تمت عملية البيع!',d.message,false,d.sale_id); resetForm(tid); }
         else showError(d.message||'حدث خطأ غير متوقع');
     } catch(e) { showError('تأكد من الاتصال وحاول مرة أخرى'); }
     finally { btns.forEach(id=>{ const b=document.getElementById(id); if(b){b.disabled=false;b.innerHTML='<i class="fas fa-check-circle"></i> إتمام البيع مباشرة';} }); }

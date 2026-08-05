@@ -3,9 +3,6 @@
 
 @section('content')
 
-    {{-- Cairo Font --}}
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
     <style>
         /* ============================= RESET & BASE ============================= */
         .db * {
@@ -975,13 +972,8 @@
     </div>{{-- end .db --}}
 
     {{-- ════════ Chart.js ════════ --}}
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous"
-        referrerpolicy="no-referrer"></script>
     <script>
-        (function() {
-            if (typeof Chart === 'undefined') {
-                return;
-            }
+        document.addEventListener('chart-ready', function () {
             Chart.defaults.font.family = 'Cairo, sans-serif';
 
             var V1 = '#6c5fe6';
@@ -1147,7 +1139,7 @@
 
             makeDonut('del1', {{ (int) $deliveryCountThisWeek }}, {{ (int) $storeCountThisWeek }});
             makeDonut('del2', {{ (int) $deliveryCountLastWeek }}, {{ (int) $storeCountLastWeek }});
-        })();
+        });
     </script>
 
 @endsection

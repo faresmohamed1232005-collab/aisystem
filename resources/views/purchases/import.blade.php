@@ -454,8 +454,15 @@
                                 <i class="fas fa-exclamation-triangle"></i> مطبوع: ${it.printed_line != null ? it.printed_line.toFixed(2) : '—'}
                             </div></div>
                         <div><label class="block text-[11px] ${missing ? 'text-red-500' : 'text-gray-500'} mb-1">الصلاحية${missing ? ' *' : ''}</label>
-                            <input type="date" value="${it.expiry}" oninput="upd(${i},'expiry',this.value)"
-                                class="w-full border ${missing ? 'border-red-300' : 'border-gray-200'} rounded-lg px-2 py-1.5 text-xs"></div>
+                            <div class="flex items-center gap-1">
+                                <input type="text" inputmode="numeric" maxlength="10" value="${expiryDisplay(it.expiry)}" placeholder="0229 أو DD/MM/YYYY"
+                                    onblur="updateExpiry(${i},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                    class="min-w-0 flex-1 border ${missing ? 'border-red-300' : 'border-gray-200'} rounded-lg px-2 py-1.5 text-xs text-center">
+                                <button type="button" onclick="openImportExpiryPicker(${i})" title="اختيار من التقويم"
+                                    class="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-calendar-alt"></i></button>
+                                <input id="import-expiry-picker-${i}" type="date" value="${it.expiry || ''}" onchange="pickImportExpiry(${i},this.value)"
+                                    tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+                            </div></div>
                     </div>
                     <div class="mt-2">
                         <label class="block text-[11px] text-gray-500 mb-1">رقم التشغيلة (Batch)</label>
@@ -467,6 +474,58 @@
             document.getElementById('items-count').textContent = items.length + ' صنف';
             renderCountWarn();
             calcTotal();
+        }
+
+        function expiryDisplay(value) {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+        }
+
+        function validExpiryDate(year, month, day) {
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+        }
+
+        function updateExpiry(i, input) {
+            const value = input.value
+                .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+                .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+                .trim();
+            let year, month, day;
+
+            if (/^\d{4}$/.test(value)) {
+                month = parseInt(value.slice(0, 2), 10);
+                year = 2000 + parseInt(value.slice(2), 10);
+                day = 1;
+            } else {
+                const full = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (full) {
+                    day = parseInt(full[1], 10);
+                    month = parseInt(full[2], 10);
+                    year = parseInt(full[3], 10);
+                }
+            }
+
+            if (!year || !validExpiryDate(year, month, day)) {
+                items[i].expiry = '';
+                showToast('error', 'تاريخ غير صحيح', 'اكتب 0229 أو تاريخاً كاملاً مثل 01/02/2029');
+                renderItems();
+                return;
+            }
+
+            items[i].expiry = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            renderItems();
+        }
+
+        function pickImportExpiry(i, value) {
+            if (value) items[i].expiry = value;
+            renderItems();
+        }
+
+        function openImportExpiryPicker(i) {
+            const picker = document.getElementById(`import-expiry-picker-${i}`);
+            if (picker.showPicker) picker.showPicker();
+            else picker.click();
         }
 
         function upd(i, field, val) {
@@ -671,6 +730,7 @@
                 if (!it.quantity || it.quantity <= 0) { showToast('error', 'كمية غير صحيحة', `راجع كمية: ${nm}`); return; }
                 if (!it.purchase_price || it.purchase_price <= 0) { showToast('error', 'سعر الشراء مطلوب', `راجع: ${nm}`); return; }
                 if (!it.selling_price || it.selling_price <= 0) { showToast('error', 'سعر البيع مطلوب', `راجع: ${nm}`); return; }
+                if (!it.expiry) { showToast('error', 'تاريخ الصلاحية مطلوب', `ادخل صلاحية: ${nm}`); return; }
             }
 
             const btn = document.getElementById('save-btn');

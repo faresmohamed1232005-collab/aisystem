@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول — AI Pharmacy System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -307,8 +306,7 @@
 <body>
 
 <!-- ── Space Background ── -->
-<video id="bg-video" autoplay muted loop playsinline
-       poster="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=85">
+<video id="bg-video" autoplay muted loop playsinline>
     <source src="" type="video/mp4">
 </video>
 <div class="overlay"></div>

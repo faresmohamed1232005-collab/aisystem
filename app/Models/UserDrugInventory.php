@@ -24,6 +24,14 @@ class UserDrugInventory extends Model
         return $query->where($this->getTable() . '.branch_id', Branch::id());
     }
 
+    public function scopeSaleable($query)
+    {
+        return $query->where(function ($query) {
+            $query->whereNull($this->getTable() . '.expiry_date')
+                ->orWhereDate($this->getTable() . '.expiry_date', '>=', today());
+        });
+    }
+
     protected $fillable = [
         'user_id',
         'branch_id',

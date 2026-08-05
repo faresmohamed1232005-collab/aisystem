@@ -74,12 +74,12 @@ Route::middleware('guest')->group(function () {
 
 
 
-Route::get('/purchases/report', [PurchaseReportController::class, 'index'])->name('purchases.report');
-Route::get('/sales/{sale}/print', [SaleController::class, 'printInvoice'])->name('sales.print');
-Route::get('/purchases/{invoice}/print', [PurchaseReportController::class, 'printInvoice'])->name('purchases.print');
-
 // ===== Auth =====
 Route::middleware('auth')->group(function () {
+
+    Route::get('/purchases/report', [PurchaseReportController::class, 'index'])->name('purchases.report');
+    Route::get('/sales/{sale}/print', [SaleController::class, 'printInvoice'])->name('sales.print');
+    Route::get('/purchases/{invoice}/print', [PurchaseReportController::class, 'printInvoice'])->name('purchases.print');
 
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 

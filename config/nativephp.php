@@ -62,6 +62,7 @@ return [
         'AWS_*',
         'AZURE_*',
         'GITHUB_*',
+        'OPENAI_*',
         'DO_SPACES_*',
         '*_SECRET',
         'BIFROST_*',

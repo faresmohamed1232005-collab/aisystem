@@ -243,9 +243,19 @@ class PurchaseReportController extends Controller
         };
     }
 
-    public function printInvoice(PurchaseInvoice $invoice)
+    public function printInvoice(Request $request, PurchaseInvoice $invoice)
     {
-        $invoice->load('items.product', 'supplier');
-        return view('purchases.print', compact('invoice'));
+        abort_if($invoice->user_id !== Auth::id(), 403);
+
+        $validated = $request->validate([
+            'format' => 'nullable|in:a4,receipt',
+        ]);
+
+        $invoice->load('items.drug', 'supplier');
+        $view = ($validated['format'] ?? 'a4') === 'receipt'
+            ? 'purchases.receipt'
+            : 'purchases.print';
+
+        return view($view, compact('invoice'));
     }
 }

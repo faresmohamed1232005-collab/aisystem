@@ -854,6 +854,58 @@
             return val == 0 ? '' : val;
         }
 
+        function expiryDisplay(value) {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+        }
+
+        function validExpiryDate(year, month, day) {
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+        }
+
+        function normalizeExpiryInput(idx, input) {
+            const value = input.value
+                .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+                .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+                .trim();
+            let year, month, day;
+
+            if (/^\d{4}$/.test(value)) {
+                month = parseInt(value.slice(0, 2), 10);
+                year = 2000 + parseInt(value.slice(2), 10);
+                day = 1;
+            } else {
+                const full = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (full) {
+                    day = parseInt(full[1], 10);
+                    month = parseInt(full[2], 10);
+                    year = parseInt(full[3], 10);
+                }
+            }
+
+            if (!year || !validExpiryDate(year, month, day)) {
+                cart[idx].expiry = '';
+                showToast('error', 'تاريخ غير صحيح', 'اكتب 0229 أو تاريخاً كاملاً مثل 01/02/2029');
+                renderCart();
+                return;
+            }
+
+            cart[idx].expiry = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            renderCart();
+        }
+
+        function pickExpiryDate(idx, value) {
+            if (value) cart[idx].expiry = value;
+            renderCart();
+        }
+
+        function openExpiryPicker(idx) {
+            const picker = document.getElementById(`expiry-picker-${idx}`);
+            if (picker.showPicker) picker.showPicker();
+            else picker.click();
+        }
+
         /* =====================================================
            RENDER CART AS TABLE (Excel-like)
            ===================================================== */
@@ -926,9 +978,19 @@
                         </div>
                     </td>
                     <td>
-                        <input type="month" value="${item.expiry ? item.expiry.substring(0,7) : ''}"
-                               onchange="updateCart(${idx},'expiry', this.value ? this.value + '-01' : '')"
-                               class="cell-input ${missingExpiry ? 'cell-expiry-missing' : ''}" style="min-width:108px;">
+                        <div class="flex items-center gap-1" style="min-width:146px;">
+                            <input type="text" value="${expiryDisplay(item.expiry)}" inputmode="numeric" maxlength="10"
+                                   placeholder="0229 أو DD/MM/YYYY" title="اكتب 0229 أو اختر من التقويم"
+                                   onblur="normalizeExpiryInput(${idx},this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                   class="cell-input ${missingExpiry ? 'cell-expiry-missing' : ''}" style="min-width:116px;">
+                            <button type="button" onclick="openExpiryPicker(${idx})" title="اختيار من التقويم"
+                                    class="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                            <input id="expiry-picker-${idx}" type="date" value="${item.expiry || ''}"
+                                   onchange="pickExpiryDate(${idx},this.value)" tabindex="-1" aria-hidden="true"
+                                   style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+                        </div>
                     </td>
                     <td>
                         <input type="number" value="${item.major_units ?? 1}" min="1" step="1"

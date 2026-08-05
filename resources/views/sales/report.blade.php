@@ -362,14 +362,9 @@
                         {{ number_format($sale->total,2) }} ج.م
                     </td>
                     <td class="px-4 py-3">
-                        <a href="{{ route('sales.print',$sale) }}" target="_blank"
-                           class="inline-flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition font-semibold">
-                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-                                <rect x="6" y="14" width="12" height="8" rx="1"/>
-                            </svg>
-                            طباعة
-                        </a>
+                        <x-print-dropdown
+                            :receipt-url="route('sales.print', ['sale' => $sale, 'format' => 'receipt'])"
+                            :a4-url="route('sales.print', ['sale' => $sale, 'format' => 'a4'])" />
                     </td>
                 </tr>
                 @endforeach
@@ -390,8 +385,8 @@
     transition: filter 0.3s;
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+document.addEventListener('chart-ready', function () {
 const chartLabels  = @json($chartLabels);
 const chartRevenue = @json($chartRevenue);
 const chartCount   = @json($chartCount);
@@ -426,5 +421,6 @@ new Chart(document.getElementById('pieChart'),{
     },cutout:'60%'}
 });
 @endif
+});
 </script>
 @endsection

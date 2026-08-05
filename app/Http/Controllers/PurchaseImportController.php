@@ -6,7 +6,7 @@ use App\Models\Drug;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use App\Support\PurchaseExpiry;
 
 class PurchaseImportController extends Controller
 {
@@ -340,8 +340,8 @@ PROMPT;
             return null;
         }
         try {
-            return Carbon::parse($v)->format('Y-m-d');
-        } catch (\Throwable $e) {
+            return PurchaseExpiry::normalize((string) $v);
+        } catch (\InvalidArgumentException $e) {
             return null;
         }
     }

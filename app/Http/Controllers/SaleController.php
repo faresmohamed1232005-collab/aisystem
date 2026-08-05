@@ -76,6 +76,7 @@ class SaleController extends Controller
                     // ══════════════════════════════════════════════════════
                     $batches = UserDrugInventory::where('user_id', $userId)
                         ->currentBranch()
+                        ->saleable()
                         ->where('drug_id', $drug->id)
                         ->where('quantity', '>', 0)
                         ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')
@@ -250,10 +251,19 @@ class SaleController extends Controller
         return view('sales.show', compact('sale'));
     }
 
-    public function printInvoice(Sale $sale)
+    public function printInvoice(Request $request, Sale $sale)
     {
         abort_if($sale->user_id !== Auth::id(), 403);
-        $sale->load('items.drug', 'customer');
-        return view('sales.print', compact('sale'));
+
+        $validated = $request->validate([
+            'format' => 'nullable|in:a4,receipt',
+        ]);
+
+        $sale->load('items.drug', 'customer', 'user');
+        $view = ($validated['format'] ?? 'a4') === 'receipt'
+            ? 'sales.receipt'
+            : 'sales.print';
+
+        return view($view, compact('sale'));
     }
 }

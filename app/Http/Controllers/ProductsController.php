@@ -51,7 +51,11 @@ class ProductsController extends Controller
             )
             ->where('user_id', $userId)
             ->where('branch_id', \App\Support\Branch::id())
-            ->where('quantity', '>', 0)          // ← باتشات فاضية تتجاهل
+            ->where('quantity', '>', 0)
+            ->where(function ($query) {
+                $query->whereNull('expiry_date')
+                    ->orWhereDate('expiry_date', '>=', today());
+            })
             ->groupBy('drug_id');
     }
 
@@ -191,6 +195,15 @@ class ProductsController extends Controller
             ->orderByDesc(DB::raw('COALESCE(inv.quantity, 0)'))
             ->orderByDesc('drugs.popularity')
             ->limit(30)->get();
+
+        $rows = $rows->unique(function ($row) {
+            $barcode = trim((string) ($row->barcode ?? ''));
+            if ($barcode !== '') {
+                return 'barcode:' . $barcode;
+            }
+
+            return 'name:' . mb_strtolower(trim((string) ($row->name_ar ?? $row->name_en ?? '')));
+        })->values();
 
         $results = $rows->map(function ($row) {
             $price      = (float) $row->price;
