@@ -499,10 +499,17 @@
             </button>
         </form>
 
-        <div class="card-foot">
-            مش عندك حساب؟
-            <a href="{{ route('register') }}"> انشاء حساب </a>
-        </div>
+        @unless (\App\Support\Runtime::isDesktop())
+            <div class="card-foot">
+                مش عندك حساب؟
+                <a href="{{ route('register') }}"> انشاء حساب </a>
+            </div>
+        @endunless
+        @if (\App\Support\Runtime::isDesktop())
+            <div class="card-foot">
+                <a href="{{ route('diagnostics.page') }}"><i class="fas fa-stethoscope"></i> مركز التشخيص والإعدادات</a>
+            </div>
+        @endif
     </div>
 
 </div><!-- /page -->

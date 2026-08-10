@@ -26,27 +26,36 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\MarketPriceCheckController;
 use App\Http\Controllers\SetupController;
+use App\Http\Controllers\SetupSyncController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\InsuredPatientController;
 use App\Http\Controllers\InsuranceClaimController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\DiagnosticsController;
+use App\Support\Runtime;
 
-
-Route::get('/storage-link', function () {
-    Artisan::call('storage:link');
-    return 'storage linked successfully!';
-});
-
-
-Route::get('/migrate', function () {
-    Artisan::call('migrate');
-    return 'db migrated successfully!';
-});
 
 // ===== إعداد أول تشغيل (الديسكتوب) — بدون auth/guest، متاح قبل التسجيل =====
 Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 Route::post('/setup', [SetupController::class, 'store'])->name('setup.store');
+Route::get('/setup/sync', [SetupSyncController::class, 'show'])->name('setup.sync.show');
+Route::post('/setup/sync/step', [SetupSyncController::class, 'step'])->name('setup.sync.step');
+
+// ===== مركز التشخيص — للمستخدم المسجّل، أو ضيف تطبيق سطح المكتب فقط =====
+Route::middleware('diagnostics.access')->group(function () {
+    Route::get('/settings/diagnostics', [DiagnosticsController::class, 'page'])->name('diagnostics.page');
+    Route::get('/settings/diagnostics/status', [DiagnosticsController::class, 'status'])->name('diagnostics.status');
+    Route::post('/settings/diagnostics/repair', [DiagnosticsController::class, 'repair'])->middleware('throttle:3,5')->name('diagnostics.repair');
+    Route::post('/settings/diagnostics/reconfigure', [DiagnosticsController::class, 'reconfigure'])->middleware('throttle:3,5')->name('diagnostics.reconfigure');
+    Route::post('/settings/diagnostics/factory-reset', [DiagnosticsController::class, 'factoryReset'])->middleware('throttle:2,10')->name('diagnostics.factory-reset');
+});
+Route::middleware('auth')->prefix('/settings/diagnostics/actions')->name('diagnostics.actions.')->group(function () {
+    Route::post('/sync', [DiagnosticsController::class, 'sync'])->name('sync');
+    Route::post('/backup', [DiagnosticsController::class, 'backup'])->name('backup');
+    Route::post('/retry', [DiagnosticsController::class, 'retry'])->middleware('throttle:5,1')->name('retry');
+    Route::post('/disconnect', [DiagnosticsController::class, 'disconnect'])->middleware('throttle:3,5')->name('disconnect');
+});
 
 
 // ===== تحدّي المصادقة الثنائية (بين كلمة المرور والدخول) — بلا auth/guest =====
@@ -57,18 +66,26 @@ Route::post('/2fa', [LoginController::class, 'verifyTwoFactor'])->name('login.2f
 // ===== Guest =====
 // الصفحة الرئيسية (لاندينج بيدج) — متاحة للجميع
 Route::get('/', function () {
-    // لو المستخدم مسجّل دخول بالفعل، وديه على طول للداشبورد
     if (auth()->check()) {
         return redirect()->route('dashboard');
     }
+
+    // Desktop تطبيق تشغيل وليس موقعاً تسويقياً؛ بعد الإعداد يبدأ من تسجيل الدخول.
+    if (Runtime::isDesktop()) {
+        return redirect()->route('login');
+    }
+
     return view('landing');
 })->name('landing');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.post');
-    Route::get('/register', [RegisterController::class, 'showForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register'])->name('register.post');
+
+    Route::middleware('web.only')->group(function () {
+        Route::get('/register', [RegisterController::class, 'showForm'])->name('register');
+        Route::post('/register', [RegisterController::class, 'register'])->name('register.post');
+    });
 });
 
 
@@ -122,6 +139,7 @@ Route::middleware('auth')->group(function () {
 
     // ===== تحديث التطبيق (فحص/تنزيل/تثبيت بإذن المستخدم) =====
     Route::get('/update/status', [\App\Http\Controllers\UpdateController::class, 'status'])->name('update.status');
+    Route::post('/update/check', [\App\Http\Controllers\UpdateController::class, 'check'])->name('update.check');
     Route::post('/update/download', [\App\Http\Controllers\UpdateController::class, 'download'])->name('update.download');
     Route::post('/update/install', [\App\Http\Controllers\UpdateController::class, 'install'])->name('update.install');
 

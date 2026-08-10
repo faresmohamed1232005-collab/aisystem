@@ -13,7 +13,7 @@ return [
      * usually in the form of a reverse domain name.
      * For example: com.nativephp.app
      */
-    'app_id' => env('NATIVEPHP_APP_ID', 'com.nativephp.app'),
+    'app_id' => env('NATIVEPHP_APP_ID', 'com.pharmacy.pos'),
 
     /**
      * If your application allows deep linking, you can specify the scheme
@@ -39,7 +39,7 @@ return [
     /**
      * The description of your application.
      */
-    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'An awesome app built with NativePHP'),
+    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'نظام إدارة الصيدلية متعدد الفروع ويعمل دون اتصال'),
 
     /**
      * The Website of your application.
@@ -59,6 +59,11 @@ return [
      * You may use wildcards to match multiple keys.
      */
     'cleanup_env_keys' => [
+        'APP_ENV',
+        'APP_DEBUG',
+        'DB_*',
+        'BRANCH_*',
+        'SYNC_*',
         'AWS_*',
         'AZURE_*',
         'GITHUB_*',
@@ -67,6 +72,8 @@ return [
         '*_SECRET',
         'BIFROST_*',
         'NATIVEPHP_UPDATER_PATH',
+        'GITHUB_TOKEN',
+        'GITHUB_AUTOUPDATE_TOKEN',
         'NATIVEPHP_APPLE_ID',
         'NATIVEPHP_APPLE_ID_PASS',
         'NATIVEPHP_APPLE_TEAM_ID',
@@ -86,6 +93,19 @@ return [
         'temp',
         'content',
         'node_modules',
+        'vendor-old',
+        'vendor-old/*',
+        'vendor-corrupt-*',
+        'vendor-corrupt-*/*',
+        'vendor-failed-install-*',
+        'vendor-failed-install-*/*',
+        'complete-mysql-pitr.ps1',
+        'finalize-mysql-recovery.ps1',
+        'repair-vendor.ps1',
+        'scan-php-integrity.ps1',
+        'start-and-test-apache.ps1',
+        'verify-pharmacy-app.*',
+        'docs/DESKTOP_BRANCH_SETUP_GUIDE.html',
         '*/tests',
     ],
 
@@ -164,7 +184,8 @@ return [
      * Define your own scripts to run before and after the build process.
      */
     'prebuild' => [
-        // 'npm run build',
+        'php artisan desktop:build-guard --env=desktop-build',
+        'npm run build',
     ],
 
     'postbuild' => [

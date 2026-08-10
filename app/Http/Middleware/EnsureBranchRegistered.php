@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\Branch;
+use App\Support\Runtime;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,12 +18,10 @@ class EnsureBranchRegistered
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $isDesktop = (bool) config('nativephp-internal.running');
-
         // نفرض الإعداد على الديسكتوب غير المُسجَّل فقط.
-        if ($isDesktop && ! Branch::isRegistered()) {
+        if (Runtime::isDesktop() && ! Branch::isRegistered()) {
             // اسمح بمسارات الإعداد نفسها والأصول والفحص الصحي حتى لا ندخل حلقة توجيه.
-            if ($request->is('setup', 'setup/*', 'up', 'build/*', 'css/*', 'js/*', 'images/*', 'favicon.ico')) {
+            if ($request->is('setup', 'setup/*', 'settings/diagnostics', 'settings/diagnostics/*', 'up', 'build/*', 'css/*', 'js/*', 'images/*', 'favicon.ico')) {
                 return $next($request);
             }
 

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Diagnostics\RecoveryService;
 use App\Support\Branch;
 use App\Support\Settings;
 use Illuminate\Http\Request;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -30,7 +32,7 @@ class SetupController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, RecoveryService $recovery)
     {
         $data = $request->validate([
             'code'           => 'required|string|max:16',
@@ -55,34 +57,58 @@ class SetupController extends Controller
                     'owner_login'    => $data['owner_login'],
                     'owner_password' => $data['owner_password'],
                 ]);
-        } catch (\Throwable $e) {
+        } catch (ConnectionException $e) {
             Log::warning('Branch registration connection failed', ['error' => $e->getMessage()]);
-            return back()->withInput()->with('error', 'تعذّر الاتصال بالسيرفر: ' . $e->getMessage());
+            return back()->withInput($request->except(['token', 'owner_password']))
+                ->with('error', 'تعذّر الاتصال بالسيرفر. تأكد من الرابط والإنترنت ثم أعد المحاولة.');
+        } catch (\Throwable $e) {
+            Log::warning('Branch registration failed', ['error' => $e->getMessage()]);
+            return back()->withInput($request->except(['token', 'owner_password']))
+                ->with('error', 'حدث خطأ أثناء تسجيل الفرع. أعد المحاولة، وإن استمر الخطأ راجع سجل التطبيق.');
         }
 
         if (! $response->successful() || ! $response->json('success')) {
             $msg = $response->json('message');
+            if ($response->status() === 422) {
+                $errors = $response->json('errors', []);
+                $msg = collect($errors)->flatten()->first() ?: $msg;
+            }
             if (empty($msg)) {
                 $msg = $response->status() === 401
-                    ? 'التوكن أو بيانات دخول الصيدلية غير صحيحة.'
+                    ? 'مفتاح المزامنة أو بيانات دخول الصيدلية غير صحيحة.'
                     : 'فشل التسجيل عند السيرفر.';
             }
-            return back()->withInput()->with('error', $msg);
+            return back()->withInput($request->except(['token', 'owner_password']))->with('error', $msg);
         }
 
         $branchId = $response->json('branch_id');
-        if (empty($branchId)) {
-            return back()->withInput()->with('error', 'استجابة تسجيل غير صالحة من السيرفر.');
+        $ownerUuid = $response->json('owner_uuid');
+        if (empty($branchId) || empty($ownerUuid)) {
+            return back()->withInput($request->except(['token', 'owner_password']))
+                ->with('error', 'استجابة تسجيل غير صالحة من السيرفر.');
+        }
+
+        if (Settings::get('reconfigure.guard') === '1' && $recovery->hasOperationalRows()) {
+            $sameIdentity = hash_equals((string) Settings::get('reconfigure.prior_branch_id'), (string) $branchId)
+                && hash_equals((string) Settings::get('reconfigure.prior_owner_uuid'), (string) $ownerUuid);
+            if (! $sameIdentity) {
+                return back()->withInput($request->except(['token', 'owner_password']))
+                    ->with('error', 'رُفض ربط بيانات العمل المحلية بمالك أو فرع مختلف. استخدم نفس هوية الفرع السابقة أو تواصل مع الدعم.');
+            }
         }
 
         // احفظ الهوية والإعدادات بشكل دائم.
         Settings::set('branch.id', $branchId);
         Settings::set('branch.code', $code);
         Settings::set('branch.name', $data['name'] ?? null);
+        Settings::set('branch.owner_uuid', $ownerUuid);
         Settings::set('sync.server_url', $serverUrl);
         Settings::set('sync.token', $data['token']);
         Settings::set('sync.enabled', '1');
         Settings::set('registered_at', now()->toDateTimeString());
+        foreach (['reconfigure.guard', 'reconfigure.prior_branch_id', 'reconfigure.prior_owner_uuid', 'reconfigure.backup'] as $key) {
+            Settings::forget($key);
+        }
 
         Log::info('Branch registered locally', ['code' => $code, 'branch_id' => $branchId]);
 
@@ -95,14 +121,7 @@ class SetupController extends Controller
             'sync.enabled'     => true,
         ]);
 
-        // أول مزامنة (سحب الكتالوج + حساب الصيدلية وموظفيها للعمل offline) —
-        // لا نفشل الإعداد لو تعثّرت، الجدولة الدورية تعيدها.
-        try {
-            \Illuminate\Support\Facades\Artisan::call('sync:pull');
-        } catch (\Throwable $e) {
-            Log::warning('Initial pull after setup failed', ['error' => $e->getMessage()]);
-        }
-
-        return redirect('/')->with('success', 'تم تسجيل الفرع «' . $code . '» بنجاح.');
+        return redirect()->route('setup.sync.show')
+            ->with('success', 'تم تسجيل الفرع «' . $code . '» بنجاح. ابدأ تنزيل البيانات.');
     }
 }

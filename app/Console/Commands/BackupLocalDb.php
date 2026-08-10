@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Services\SqliteBackupService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\File;
 
 /**
  * نسخ احتياطي محلي دوري لقاعدة بيانات الفرع (SQLite).
@@ -19,44 +18,24 @@ class BackupLocalDb extends Command
     protected $signature = 'sync:backup {--keep=14 : عدد النسخ المحتفظ بها}';
     protected $description = 'نسخ احتياطي لقاعدة بيانات الفرع المحلية (SQLite)';
 
-    public function handle(): int
+    public function handle(SqliteBackupService $backups): int
     {
-        $connection = config('database.default');
-        if ($connection !== 'sqlite') {
-            $this->warn("القاعدة الحالية ({$connection}) ليست SQLite — تخطّي النسخ الاحتياطي المحلي.");
+        if (config('database.default') !== 'sqlite') {
+            $this->warn('القاعدة الحالية ليست SQLite — تخطّي النسخ الاحتياطي المحلي.');
+
             return self::SUCCESS;
         }
 
-        $dbPath = config('database.connections.sqlite.database');
-        if (!$dbPath || !File::exists($dbPath)) {
-            $this->error("ملف قاعدة البيانات غير موجود: {$dbPath}");
+        try {
+            $backup = $backups->create(max(1, (int) $this->option('keep')));
+            $this->info('نسخة احتياطية موثوقة: '.$backup['path']);
+            $this->line('SHA256: '.$backup['sha256']);
+
+            return self::SUCCESS;
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+
             return self::FAILURE;
         }
-
-        $backupDir = storage_path('app/backups');
-        File::ensureDirectoryExists($backupDir);
-
-        $stamp  = Carbon::now()->format('Ymd_His');
-        $target = $backupDir . DIRECTORY_SEPARATOR . "branch_db_{$stamp}.sqlite";
-
-        if (!File::copy($dbPath, $target)) {
-            $this->error('فشل إنشاء النسخة الاحتياطية.');
-            return self::FAILURE;
-        }
-        $this->info("✓ نسخة احتياطية: {$target}");
-
-        // الاحتفاظ بآخر N نسخ فقط.
-        $keep = max(1, (int) $this->option('keep'));
-        $backups = collect(File::glob($backupDir . DIRECTORY_SEPARATOR . 'branch_db_*.sqlite'))
-            ->sortDesc()
-            ->values();
-
-        $backups->slice($keep)->each(function ($old) {
-            File::delete($old);
-        });
-
-        $this->line("  المحتفظ به: " . min($backups->count(), $keep) . " نسخة.");
-
-        return self::SUCCESS;
     }
 }

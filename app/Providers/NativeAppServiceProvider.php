@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 use Native\Desktop\Facades\AutoUpdater;
+use Native\Desktop\Facades\ChildProcess;
 use Native\Desktop\Facades\Window;
 use Native\Desktop\Contracts\ProvidesPhpIni;
 
@@ -27,9 +28,12 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->minHeight(700)
             ->maximized();
 
+        // شغّل Laravel scheduler كعملية خلفية دائمة داخل التطبيق؛ فهو المسؤول عن
+        // المزامنة الدورية والنسخة الاحتياطية اليومية حتى لو لم تبقَ صفحة مفتوحة.
+        $this->startScheduler();
+
         // فحص وجود تحديث عند الإقلاع (لا يثبّت تلقائياً — يُعلِم المستخدم فقط).
-        // أحداث AutoUpdater (UpdateAvailable/Downloaded) يلتقطها UpdateListener
-        // ويخزّن الحالة في الكاش لتعرضها الواجهة كبانر "يوجد تحديث".
+        // أحداث AutoUpdater تحفظ الحالة لتعرضها الواجهة ومركز التشخيص.
         if (config('nativephp.updater.enabled')) {
             try {
                 AutoUpdater::checkForUpdates();
@@ -37,6 +41,20 @@ class NativeAppServiceProvider implements ProvidesPhpIni
                 // لا نوقف الإقلاع لو تعذّر الفحص (مثلاً لا يوجد نت).
                 report($e);
             }
+        }
+    }
+
+    private function startScheduler(): void
+    {
+        try {
+            ChildProcess::artisan(
+                ['schedule:work', '--quiet'],
+                'laravel_scheduler',
+                persistent: true,
+            );
+        } catch (\Throwable $e) {
+            // لا نمنع الإقلاع؛ مركز التشخيص سيُظهر غياب نجاح المزامنة/النسخ لاحقاً.
+            report($e);
         }
     }
 

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\UpdateState;
+use App\Support\Actor;
+use App\Support\Runtime;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -20,9 +22,25 @@ class UpdateController extends Controller
         return response()->json(UpdateState::get());
     }
 
+    /** اطلب فحصاً يدوياً لقناة الإصدارات. */
+    public function check(): JsonResponse
+    {
+        $this->authorizeDesktopOwner();
+
+        if (! config('nativephp.updater.enabled')) {
+            return response()->json(['success' => false, 'message' => 'التحديثات غير مُفعّلة في هذا الإصدار.'], 400);
+        }
+
+        \Native\Desktop\Facades\AutoUpdater::checkForUpdates();
+        UpdateState::setChecking();
+
+        return response()->json(['success' => true, 'message' => 'بدأ فحص التحديثات...']);
+    }
+
     /** بدء تنزيل التحديث المتاح (لا يثبّت — ينتظر إذن التثبيت بعد التنزيل). */
     public function download(): JsonResponse
     {
+        $this->authorizeDesktopOwner();
         $state = UpdateState::get();
         if ($state['status'] !== 'available') {
             return response()->json(['success' => false, 'message' => 'لا يوجد تحديث متاح للتنزيل.'], 400);
@@ -41,6 +59,7 @@ class UpdateController extends Controller
     /** تثبيت التحديث الذي اكتمل تنزيله (يعيد تشغيل التطبيق). */
     public function install(): JsonResponse
     {
+        $this->authorizeDesktopOwner();
         $state = UpdateState::get();
         if ($state['status'] !== 'downloaded') {
             return response()->json(['success' => false, 'message' => 'التحديث لم يكتمل تنزيله بعد.'], 400);
@@ -54,5 +73,11 @@ class UpdateController extends Controller
         \Native\Desktop\Facades\AutoUpdater::quitAndInstall();
 
         return response()->json(['success' => true, 'message' => 'جارٍ التثبيت وإعادة التشغيل...']);
+    }
+
+    private function authorizeDesktopOwner(): void
+    {
+        abort_unless(Runtime::isDesktop(), 404);
+        abort_unless(Actor::isOwner(), 403);
     }
 }

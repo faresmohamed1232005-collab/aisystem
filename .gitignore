@@ -3,6 +3,7 @@
 .env
 .env.backup
 .env.production
+.env.desktop-build
 .phpactor.json
 .phpunit.result.cache
 /.fleet
@@ -21,6 +22,9 @@
 /storage/*.key
 /storage/pail
 /vendor
+/vendor-old/
+/vendor-corrupt-*/
+/vendor-failed-install-*/
 Homestead.json
 Homestead.yaml
 Thumbs.db

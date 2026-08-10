@@ -2,6 +2,7 @@
 
 namespace App\Services\Sync;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -36,6 +37,26 @@ class SyncRunner
             return ['success' => true, 'pushed' => 0, 'pulled' => 0, 'message' => 'مؤجّلة (backoff).', 'skipped' => true];
         }
 
+        $lock = Cache::lock('sync.runner', 300);
+        if (!$lock->get()) {
+            return [
+                'success' => true,
+                'pushed' => 0,
+                'pulled' => 0,
+                'message' => 'توجد دورة مزامنة أخرى قيد التشغيل.',
+                'skipped' => true,
+            ];
+        }
+
+        try {
+            return $this->executeCycle();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function executeCycle(): array
+    {
         SyncStatus::setState('syncing');
 
         $pushed = 0;

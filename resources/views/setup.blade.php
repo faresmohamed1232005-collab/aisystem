@@ -30,10 +30,12 @@
             background: #0f766e; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
         }
         button:hover { background: #115e59; }
+        button:disabled { background: #94a3b8; cursor: wait; }
         .alert { padding: 11px 14px; border-radius: 9px; font-size: 14px; margin-bottom: 16px; }
         .alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
         .row { display: flex; gap: 12px; }
         .row > div { flex: 1; }
+        .diagnostics-link { display:block; margin-top:16px; text-align:center; color:#0f766e; font-size:13px; font-weight:700; text-decoration:none; }
     </style>
 </head>
 <body>
@@ -81,8 +83,16 @@
             <label for="owner_password">كلمة مرور الصيدلية</label>
             <input type="password" id="owner_password" name="owner_password" placeholder="••••••••" required>
 
-            <button type="submit">تسجيل الفرع وبدء المزامنة</button>
+            <button id="submit-button" type="submit">تسجيل الفرع وبدء المزامنة</button>
         </form>
+        <a class="diagnostics-link" href="{{ route('diagnostics.page') }}">فتح مركز التشخيص والإعدادات</a>
     </div>
+    <script>
+        document.querySelector('form').addEventListener('submit', function () {
+            const button = document.getElementById('submit-button');
+            button.disabled = true;
+            button.textContent = 'جارٍ تسجيل الفرع...';
+        });
+    </script>
 </body>
 </html>

@@ -432,6 +432,14 @@
                     <i class="fas fa-lock w-5 text-center"></i> أمان الحساب
                 </a>
                 @endunless
+                <a href="{{ route('diagnostics.page') }}"
+                    class="nav-item {{ request()->routeIs('diagnostics.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
+                    onclick="closeSidebar()">
+                    <i class="fas fa-stethoscope w-5 text-center"></i> التشخيص والإعدادات
+                    @if (!empty($diagnosticsWarning))
+                        <span class="mr-auto h-2.5 w-2.5 rounded-full bg-amber-400" title="يوجد تنبيه محلي"></span>
+                    @endif
+                </a>
             </nav>
 
             <div class="p-4 border-t border-white/10">
@@ -572,6 +580,13 @@
                 </div>
             </header>
 
+            @if (!empty($diagnosticsWarning))
+                <a href="{{ route('diagnostics.page') }}" class="flex flex-shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 hover:bg-amber-100">
+                    <span><i class="fas fa-triangle-exclamation ml-2"></i>يوجد تنبيه محلي في حالة النظام أو المزامنة.</span>
+                    <span class="font-bold">افتح التشخيص</span>
+                </a>
+            @endif
+
             {{-- بانر التحديث: يظهر عند توفّر تحديث جديد (بإذن المستخدم) --}}
             <div id="update-banner" class="hidden bg-indigo-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-sm flex-shrink-0">
                 <div class="flex items-center gap-2">
@@ -701,9 +716,8 @@
             document.body.appendChild(el);
             setTimeout(() => el.remove(), 3500);
         }
-        // مزامنة تلقائية دورية في الخلفية (صامتة)
-        const SYNC_INTERVAL = {{ (int) config('sync.interval', 60) }} * 1000;
-        if (SYNC_INTERVAL >= 5000) setInterval(() => runSync(true), SYNC_INTERVAL);
+        // المزامنة الدورية تعمل بعملية Laravel scheduler دائمة داخل NativePHP.
+        // الواجهة تكتفي بالتشغيل اليدوي وعرض الحالة حتى لا تبدأ دورات متنافسة.
         // تحديث مؤشر الاتصال دورياً وعند البداية
         refreshSyncStatus();
         setInterval(refreshSyncStatus, 15000);
@@ -727,9 +741,10 @@
                     actionBtn.disabled = false;
                     banner.classList.remove('hidden');
                 } else if (d.status === 'downloading') {
-                    text.textContent = 'جارٍ تنزيل التحديث...';
+                    const percent = Number(d.progress?.percent || 0).toFixed(1);
+                    text.textContent = 'جارٍ تنزيل التحديث... ' + percent + '%';
                     actionBtn.disabled = true;
-                    actionBtn.textContent = 'يُنزّل...';
+                    actionBtn.textContent = percent + '%';
                     banner.classList.remove('hidden');
                 } else if (d.status === 'downloaded') {
                     text.textContent = 'التحديث جاهز للتثبيت' + (d.version ? ' (الإصدار ' + d.version + ')' : '');

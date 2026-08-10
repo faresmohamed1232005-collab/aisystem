@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دليل إعداد وربط تطبيق الصيدلية المكتبي</title>
+    <style>
+        :root { --primary:#0f766e; --dark:#0f172a; --muted:#64748b; --line:#cbd5e1; --soft:#f0fdfa; --warn:#fff7ed; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:#eef2f7; color:var(--dark); font-family:Tahoma,Arial,sans-serif; line-height:1.75; }
+        .page { width:210mm; min-height:297mm; margin:18px auto; padding:15mm; background:#fff; box-shadow:0 8px 30px rgba(15,23,42,.12); }
+        h1 { margin:0; color:var(--primary); font-size:25px; }
+        h2 { margin:22px 0 10px; color:var(--primary); font-size:18px; border-bottom:2px solid #ccfbf1; padding-bottom:5px; }
+        h3 { margin:12px 0 5px; font-size:15px; }
+        p { margin:5px 0 10px; }
+        .subtitle { color:var(--muted); margin-top:3px; }
+        .intro,.note,.warning { padding:11px 14px; border-radius:9px; margin:12px 0; }
+        .intro { background:var(--soft); border-right:4px solid var(--primary); }
+        .note { background:#eff6ff; border-right:4px solid #2563eb; }
+        .warning { background:var(--warn); border-right:4px solid #ea580c; }
+        table { width:100%; border-collapse:collapse; margin:10px 0 16px; font-size:13px; }
+        th,td { border:1px solid var(--line); padding:8px 9px; vertical-align:top; text-align:right; }
+        th { background:#f8fafc; color:#334155; }
+        code,.value { direction:ltr; unicode-bidi:embed; font-family:Consolas,"Courier New",monospace; background:#f1f5f9; border-radius:4px; padding:2px 5px; display:inline-block; }
+        .field { border:1px solid #e2e8f0; border-radius:10px; padding:10px 13px; margin:8px 0; break-inside:avoid; }
+        .field-title { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+        .owner { color:#0369a1; font-size:12px; font-weight:bold; }
+        ul,ol { margin:5px 0 10px; padding-right:23px; }
+        .checklist { list-style:none; padding:0; }
+        .checklist li { margin:6px 0; }
+        .checklist li::before { content:"☐"; font-size:17px; margin-left:7px; color:var(--primary); }
+        .footer { margin-top:22px; padding-top:8px; border-top:1px solid #e2e8f0; color:var(--muted); font-size:11px; text-align:center; }
+        .no-print { text-align:center; margin:14px; }
+        button { border:0; border-radius:8px; background:var(--primary); color:#fff; padding:10px 18px; font-weight:bold; cursor:pointer; }
+        @page { size:A4; margin:10mm; }
+        @media print {
+            body { background:#fff; }
+            .page { width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; }
+            .no-print { display:none; }
+            h2,.field,table { break-inside:avoid; }
+        }
+        @media (max-width:800px) { .page { width:auto; min-height:0; margin:0; padding:20px; } }
+    </style>
+</head>
+<body>
+<div class="no-print"><button onclick="window.print()">طباعة الدليل / حفظ PDF</button></div>
+<main class="page">
+    <header>
+        <h1>دليل إعداد وربط تطبيق الصيدلية المكتبي</h1>
+        <p class="subtitle">شرح بيانات شاشة أول تشغيل والمسؤول عن تجهيز كل قيمة</p>
+    </header>
+
+    <div class="intro">
+        تظهر شاشة «إعداد الفرع» مرة واحدة عند تشغيل التطبيق على جهاز جديد. وظيفتها ربط الجهاز بفرع محدد وبحساب الصيدلية على السيرفر المركزي، ثم تنزيل البيانات اللازمة للعمل بدون إنترنت.
+    </div>
+
+    <h2>توزيع المسؤوليات</h2>
+    <table>
+        <thead><tr><th>مسؤول النظام / المبرمج</th><th>صاحب الصيدلية أو مدير الفرع</th></tr></thead>
+        <tbody><tr>
+            <td>تجهيز السيرفر والدومين، إنشاء مفتاح المزامنة، تشغيل migrations، اعتماد حساب المالك، وتحديد أكواد الفروع.</td>
+            <td>إدخال كود واسم الفرع وبيانات حساب المالك التي يستخدمها في نسخة الويب.</td>
+        </tr></tbody>
+    </table>
+
+    <h2>شرح خانات شاشة الإعداد</h2>
+
+    <section class="field">
+        <div class="field-title"><h3>1) كود الفرع</h3><span class="owner">يحدده مسؤول النظام / صاحب الصيدلية</span></div>
+        <p>رمز فريد لكل فرع، ويُستخدم كبادئة لأرقام الفواتير.</p>
+        <p>أمثلة: <code>MAIN</code> للفرع الرئيسي، <code>MAADI</code> للمعادي، <code>NASR</code> لمدينة نصر.</p>
+        <p><strong>مهم:</strong> لا تستخدم نفس الكود لفرعين مختلفين.</p>
+    </section>
+
+    <section class="field">
+        <div class="field-title"><h3>2) اسم الفرع</h3><span class="owner">صاحب الصيدلية / مدير الفرع</span></div>
+        <p>اسم واضح يظهر في التقارير وإدارة التحويلات، مثل: <code>الفرع الرئيسي</code> أو <code>فرع المعادي</code>. الخانة اختيارية لكن يُفضّل تعبئتها.</p>
+    </section>
+
+    <section class="field">
+        <div class="field-title"><h3>3) رابط السيرفر المركزي</h3><span class="owner">يوفره المبرمج</span></div>
+        <p>رابط نسخة الويب المنشورة Online، بدون شرطة مائلة في النهاية.</p>
+        <p>مثال إنتاجي: <code>https://pharmacy.example.com</code></p>
+        <p>للتجربة على نفس جهاز التطوير فقط: <code>http://pharmacy_sys.test</code></p>
+        <p>الرابط المحلي لا يعمل من جهاز عميل آخر؛ يجب وقتها استخدام دومين أو IP يمكن الوصول إليه.</p>
+    </section>
+
+    <section class="field">
+        <div class="field-title"><h3>4) مفتاح المزامنة (SYNC_TOKEN)</h3><span class="owner">ينشئه ويحفظه المبرمج</span></div>
+        <p>سر مشترك بين السيرفر وتطبيقات الفروع. ليس كلمة مرور المالك ولا كلمة مرور قاعدة البيانات.</p>
+        <p>يُنشأ مرة بقيمة قوية، ثم تُوضع نفس القيمة في إعدادات السيرفر وفي شاشة إعداد الفرع.</p>
+        <p>مثال توليد على السيرفر: <code>php artisan tinker --execute="echo bin2hex(random_bytes(32));"</code></p>
+        <div class="warning"><strong>سري:</strong> لا ترسل قيمة Token في ملف الدليل، ولا تنشرها في صور أو محادثات عامة. اكتب مكانها دائمًا <code>[يُسلّم بشكل آمن]</code>.</div>
+    </section>
+
+    <section class="field">
+        <div class="field-title"><h3>5) بريد أو اسم مستخدم الصيدلية</h3><span class="owner">صاحب حساب الصيدلية</span></div>
+        <p>هو نفس البريد أو اسم المستخدم الذي يسجل به مالك الصيدلية الدخول إلى نسخة الويب. يجب أن يكون الحساب موجودًا ومفعّلًا على السيرفر.</p>
+    </section>
+
+    <section class="field">
+        <div class="field-title"><h3>6) كلمة مرور الصيدلية</h3><span class="owner">صاحب حساب الصيدلية</span></div>
+        <p>كلمة مرور حساب المالك على نسخة الويب. تُستخدم للتحقق وربط الفرع بالحساب، وليست مفتاح المزامنة.</p>
+    </section>
+
+    <h2>إعدادات السيرفر المطلوبة — للمبرمج</h2>
+    <p>في ملف البيئة الخاص بالسيرفر المركزي:</p>
+    <pre class="value">SYNC_ENABLED=true
+SYNC_TOKEN=[قيمة سرية قوية]
+BRANCH_ID=server
+SERVER_BRANCH_ID=server</pre>
+    <p>بعد التعديل:</p>
+    <pre class="value">php artisan migrate --force
+php artisan optimize:clear</pre>
+
+    <h2>نموذج تعبئة — نسخة إنتاج</h2>
+    <table>
+        <tbody>
+            <tr><th>كود الفرع</th><td><code>MAADI</code></td></tr>
+            <tr><th>اسم الفرع</th><td>فرع المعادي</td></tr>
+            <tr><th>رابط السيرفر</th><td><code>https://pharmacy.example.com</code></td></tr>
+            <tr><th>مفتاح المزامنة</th><td><code>[يُسلّم بشكل آمن]</code></td></tr>
+            <tr><th>بريد/اسم المستخدم</th><td><code>owner@example.com</code></td></tr>
+            <tr><th>كلمة المرور</th><td><code>[كلمة مرور حساب المالك]</code></td></tr>
+        </tbody>
+    </table>
+
+    <h2>نموذج تعبئة — تجربة محلية على جهاز المطور</h2>
+    <table>
+        <tbody>
+            <tr><th>كود الفرع</th><td><code>TEST-A</code></td></tr>
+            <tr><th>اسم الفرع</th><td>فرع التجربة</td></tr>
+            <tr><th>رابط السيرفر</th><td><code>http://pharmacy_sys.test</code></td></tr>
+            <tr><th>مفتاح المزامنة</th><td>نفس قيمة <code>SYNC_TOKEN</code> في بيئة Laragon</td></tr>
+            <tr><th>بيانات الحساب</th><td>حساب مالك معتمد موجود في قاعدة البيانات المحلية</td></tr>
+        </tbody>
+    </table>
+
+    <h2>قائمة مراجعة قبل الضغط على «تسجيل الفرع»</h2>
+    <ul class="checklist">
+        <li>السيرفر المركزي يعمل ويمكن فتح رابطه من جهاز الفرع.</li>
+        <li>تم تشغيل migrations على السيرفر.</li>
+        <li>تم ضبط <code>SYNC_TOKEN</code> على السيرفر.</li>
+        <li>كود الفرع فريد وغير مستخدم لصيدلية أخرى.</li>
+        <li>حساب المالك موجود ومعتمد وكلمة مروره صحيحة.</li>
+        <li>الإنترنت متاح أثناء التسجيل والمزامنة الأولى.</li>
+    </ul>
+
+    <h2>ماذا يحدث بعد التسجيل؟</h2>
+    <ol>
+        <li>يتحقق السيرفر من Token ومن بيانات حساب المالك.</li>
+        <li>ينشئ أو يربط الفرع ويعيد هوية ثابتة للجهاز.</li>
+        <li>يحفظ التطبيق بيانات الربط محليًا.</li>
+        <li>تبدأ أول مزامنة لتنزيل حساب الصيدلية والموظفين والكتالوج.</li>
+        <li>بعد اكتمال التنزيل يستطيع التطبيق العمل Offline.</li>
+    </ol>
+
+    <div class="note"><strong>اقتراح للإنتاج:</strong> الأفضل مستقبلًا استبدال رابط السيرفر وSYNC_TOKEN بكود تفعيل واحد يصدره الأدمن، حتى تكون شاشة العميل أبسط وأكثر أمانًا.</div>
+
+    <footer class="footer">هذا الملف لا يحتوي أي مفاتيح أو كلمات مرور حقيقية، ويمكن مشاركته أو حفظه بصيغة PDF بأمان.</footer>
+</main>
+</body>
+</html>

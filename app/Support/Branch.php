@@ -65,11 +65,14 @@ class Branch
      */
     public static function isRegistered(): bool
     {
-        if (self::isServer()) {
+        // لا تستدعِ id() هنا: شاشة الإعداد غير المسجّلة يجب ألا تولّد هوية عشوائية
+        // قبل نجاح التسجيل، خصوصاً عند وجود حارس إعادة التهيئة.
+        $configured = config('sync.branch_id') ?: env('BRANCH_ID') ?: Settings::get('branch.id');
+        if ($configured === (config('sync.server_branch_id') ?: 'server')) {
             return true;
         }
 
-        return Settings::has('branch.id')
+        return ! empty($configured)
             && Settings::has('sync.server_url')
             && Settings::has('sync.token');
     }

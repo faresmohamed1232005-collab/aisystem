@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Sync\SyncPullQuery;
 use App\Services\Sync\SyncRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,39 @@ class SyncController extends Controller
         ]);
     }
 
+    /** تحقّق مركزي من مالك الفرع دون تسجيل أو تعديل الفرع. */
+    public function verifyOwner(Request $request)
+    {
+        $data = $request->validate([
+            'branch_id' => 'required|string|max:64',
+            'owner_login' => 'required|string|max:255',
+            'owner_password' => 'required|string',
+        ]);
+
+        $branch = Schema::hasTable('branches')
+            ? DB::table('branches')->where('branch_id', $data['branch_id'])->first()
+            : null;
+        if (! $branch || $branch->user_id === null) {
+            return response()->json(['success' => false, 'message' => 'الفرع غير موجود.'], 404);
+        }
+
+        $login = trim($data['owner_login']);
+        $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+        $owner = \App\Models\User::whereKey($branch->user_id)->where($field, $login)->first();
+        if (! $owner || ! \Illuminate\Support\Facades\Hash::check($data['owner_password'], $owner->password)) {
+            return response()->json(['success' => false, 'message' => 'بيانات مالك الصيدلية غير صحيحة.'], 401);
+        }
+        if (isset($owner->is_approved) && ! $owner->is_approved) {
+            return response()->json(['success' => false, 'message' => 'حساب الصيدلية غير مفعّل.'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'branch_id' => $branch->branch_id,
+            'owner_uuid' => $owner->uuid,
+        ]);
+    }
+
     /**
      * Register: تسجيل فرع جديد عند أول تشغيل. يستقبل كود الفرع (والاسم اختياري)،
      * يولّد branch_id ثابت ويحفظه في جدول branches، ثم يعيده للجهاز ليخزّنه دائماً.
@@ -170,6 +204,7 @@ class SyncController extends Controller
             'success'     => true,
             'branch_id'   => $branchId,
             'branch_code' => $code,
+            'owner_uuid'  => $owner->uuid,
         ]);
     }
 
@@ -189,82 +224,56 @@ class SyncController extends Controller
      * نُترجم كل FK إلى <fk>_uuid حتى يطبّقها الفرع عبر uuid (نفس آلية push معكوسة).
      * نُرسل حتى batch_size صف لكل جدول؛ الفرع يكرّر السحب حتى يفرغ (cursor يتقدّم).
      */
-    public function pull(Request $request)
+    public function pull(Request $request, SyncPullQuery $pullQueries)
     {
-        $data    = $request->validate([
-            'cursors'   => 'sometimes|array',
+        $data = $request->validate([
+            'cursors' => 'sometimes|array',
+            'until' => 'sometimes|array',
             'branch_id' => 'sometimes|nullable|string|max:64',
         ]);
         $cursors = $data['cursors'] ?? [];
-
-        // نسحب الجداول العادية + الجداول ذات الاستراتيجية المقيّدة (Phase 2أ).
-        $pullScoped = config('sync.pull_scoped', []);
-        $pullable   = array_merge(config('sync.pull', []), array_keys($pullScoped));
-        $relations  = config('sync.relations', []);
+        $until = $data['until'] ?? [];
+        $relations = config('sync.relations', []);
         $preserveId = config('sync.preserve_id', []);
-        $limit      = (int) config('sync.batch_size', 200);
-        $me         = $data['branch_id'] ?? null; // الفرع الطالب (لفلاتر pull_scoped)
+        $limit = (int) config('sync.batch_size', 200);
+        $branchId = $data['branch_id'] ?? null;
+        $ownerId = $pullQueries->ownerId($branchId);
 
-        // حسابات الفرع مُخصَّصة للـ tenant المالك: نحلّ user_id من branch_id.
-        $ownerUserId = null;
-        if (! empty($data['branch_id']) && Schema::hasTable('branches')) {
-            $ownerUserId = DB::table('branches')->where('branch_id', $data['branch_id'])->value('user_id');
-            DB::table('branches')->where('branch_id', $data['branch_id'])->update(['last_seen_at' => now()]);
+        if ($branchId && Schema::hasTable('branches')) {
+            DB::table('branches')->where('branch_id', $branchId)->update(['last_seen_at' => now()]);
         }
 
         $out = [];
 
-        foreach ($pullable as $table) {
-            $cursor   = $cursors[$table] ?? null;
-            $sinceTs  = is_array($cursor) ? ($cursor['ts'] ?? null) : $cursor; // توافق مع cursor نصّي قديم
-            $sinceId  = is_array($cursor) ? ($cursor['uuid'] ?? null) : null;
+        foreach ($pullQueries->tables() as $table) {
+            $cursor = $cursors[$table] ?? null;
+            $sinceTs = is_array($cursor) ? ($cursor['ts'] ?? null) : $cursor;
+            $sinceUuid = is_array($cursor) ? ($cursor['uuid'] ?? null) : null;
+            $untilCursor = $until[$table] ?? null;
+            $untilTs = is_array($untilCursor) ? ($untilCursor['ts'] ?? null) : null;
+            $untilUuid = is_array($untilCursor) ? ($untilCursor['uuid'] ?? null) : null;
 
-            // keyset: updated_at > ts  OR  (updated_at = ts AND uuid > lastUuid)
-            $query = DB::table($table)
-                ->when($sinceTs !== null, function ($q) use ($sinceTs, $sinceId) {
-                    $q->where(function ($w) use ($sinceTs, $sinceId) {
-                        $w->where('updated_at', '>', $sinceTs);
-                        if ($sinceId !== null) {
-                            $w->orWhere(function ($e) use ($sinceTs, $sinceId) {
-                                $e->where('updated_at', '=', $sinceTs)
-                                  ->where('uuid', '>', $sinceId);
-                            });
-                        }
-                    });
-                });
+            $query = $pullQueries->scoped($table, $branchId, $ownerId)
+                ->when($sinceTs !== null, fn ($q) => $this->applyAfterCursor($q, $sinceTs, $sinceUuid))
+                ->when($untilTs !== null, fn ($q) => $this->applyUntilCursor($q, $untilTs, $untilUuid))
+                ->orderBy('updated_at')
+                ->orderBy('uuid')
+                ->limit($limit + 1);
 
-            // تخصيص الحسابات للفرع: فقط الصيدلية المالكة وموظفيها (لا حسابات tenants أخرى).
-            if ($table === 'users') {
-                $query->where('id', $ownerUserId ?? -1);
-            } elseif ($table === 'sub_users') {
-                $query->where('owner_id', $ownerUserId ?? -1);
-            } elseif (isset($pullScoped[$table])) {
-                // استراتيجيات pull_scoped (التحويلات/اللقطات) — مقيّدة بهوية الفرع الطالب.
-                $this->applyScopedFilter($query, $pullScoped[$table], $ownerUserId, $me);
-            } elseif (in_array($table, config('sync.pull_owner_scoped', []), true)) {
-                // بيانات ماستر خاصة بالمالك (فروع/تعاقدات/تأمين): تُسحب لفروع نفس المالك فقط.
-                $query->where('user_id', $ownerUserId ?? -1);
-            }
-
-            $query->orderBy('updated_at')
-                ->orderBy('uuid') // uuid (ULID) فريد وثابت عبر الطرفين → tiebreaker مستقر
-                ->limit($limit);
-
-            $rows   = $query->get();
-            $fkMap  = $relations[$table] ?? [];
-            $keepId = in_array($table, $preserveId, true); // users: نرسل id ليُحفظ على الفرع
+            $rows = $query->get();
+            $more = $rows->count() > $limit;
+            $rows = $rows->take($limit);
             $mapped = [];
             $newCursor = $cursor;
 
             foreach ($rows as $row) {
                 $arr = (array) $row;
-                unset($arr['synced_at']); // synced_at حقل محلي بحت
-                if (! $keepId) {
-                    unset($arr['id']); // id السيرفر لا معنى له للفرع (الربط عبر uuid)
+                unset($arr['synced_at']);
+                if (! in_array($table, $preserveId, true)) {
+                    unset($arr['id']);
                 }
 
-                // ترجمة الـ FK: id (على السيرفر) → <fk>_uuid
-                foreach ($fkMap as $fkColumn => $referencedTable) {
+                foreach ($relations[$table] ?? [] as $fkColumn => $referencedTable) {
                     $localFk = $arr[$fkColumn] ?? null;
                     unset($arr[$fkColumn]);
                     $arr[$fkColumn . '_uuid'] = $localFk !== null
@@ -272,53 +281,65 @@ class SyncController extends Controller
                         : null;
                 }
 
-                $mapped[]  = $arr;
-                // آخر صف يحدّد الـ cursor الجديد (الصفوف مرتّبة تصاعدياً بـ updated_at,uuid).
+                $mapped[] = $arr;
                 $newCursor = ['ts' => $row->updated_at, 'uuid' => $row->uuid];
             }
 
-            $out[$table] = [
-                'rows'   => $mapped,
-                'cursor' => $newCursor,
-                'more'   => $rows->count() === $limit, // هل توجد دفعات أخرى؟
-            ];
+            $out[$table] = ['rows' => $mapped, 'cursor' => $newCursor, 'more' => $more];
         }
 
         return response()->json(['success' => true, 'tables' => $out]);
     }
 
-    /**
-     * فلتر pull_scoped حسب استراتيجية الجدول (Phase 2أ). يقيّد الصفوف المسحوبة بهوية
-     * الفرع الطالب ($me) أو مالكه ($ownerUserId).
-     *
-     * @param  \Illuminate\Database\Query\Builder  $query
-     */
-    private function applyScopedFilter($query, string $strategy, ?int $ownerUserId, ?string $me): void
+    public function manifest(Request $request, SyncPullQuery $pullQueries)
     {
-        switch ($strategy) {
-            case 'branch_party':
-                // التحويلات التي هذا الفرع طرفٌ فيها (مصدر أو وجهة).
-                $query->where(function ($w) use ($me) {
-                    $w->where('from_branch_id', $me)->orWhere('to_branch_id', $me);
-                });
-                break;
+        $data = $request->validate(['branch_id' => 'sometimes|nullable|string|max:64']);
+        $branchId = $data['branch_id'] ?? null;
+        $ownerId = $pullQueries->ownerId($branchId);
+        return DB::transaction(function () use ($pullQueries, $branchId, $ownerId) {
+            $generatedAt = now()->utc();
+            $tables = [];
 
-            case 'via_parent':
-                // بنود التحويلات المرئية لهذا الفرع فقط (أبناء transfers الظاهرة له).
-                $query->whereIn('transfer_id', function ($sub) use ($me) {
-                    $sub->select('id')->from('stock_transfers')
-                        ->where(function ($w) use ($me) {
-                            $w->where('from_branch_id', $me)->orWhere('to_branch_id', $me);
-                        });
-                });
-                break;
+            foreach ($pullQueries->tables() as $table) {
+                $query = $pullQueries->scoped($table, $branchId, $ownerId);
+                $total = (clone $query)->count();
+                $last = (clone $query)->orderByDesc('updated_at')->orderByDesc('uuid')->first(['updated_at', 'uuid']);
+                $tables[$table] = [
+                    'total' => $total,
+                    'until' => $last ? ['ts' => $last->updated_at, 'uuid' => $last->uuid] : null,
+                ];
+            }
 
-            case 'owner_other_branches':
-                // لقطات مخزون الفروع الأخرى لنفس المالك (تستثني الفرع نفسه).
-                $query->where('user_id', $ownerUserId ?? -1)
-                      ->where('snapshot_branch_id', '!=', (string) $me);
-                break;
-        }
+            return response()->json([
+                'success' => true,
+                'version' => 1,
+                'manifest_id' => (string) Str::ulid(),
+                'generated_at' => $generatedAt->toIso8601String(),
+                'tables' => $tables,
+            ]);
+        });
+    }
+
+    private function applyAfterCursor($query, string $ts, ?string $uuid): void
+    {
+        $query->where(function ($where) use ($ts, $uuid) {
+            $where->where('updated_at', '>', $ts);
+            if ($uuid !== null) {
+                $where->orWhere(fn ($same) => $same->where('updated_at', $ts)->where('uuid', '>', $uuid));
+            }
+        });
+    }
+
+    private function applyUntilCursor($query, string $ts, ?string $uuid): void
+    {
+        $query->where(function ($where) use ($ts, $uuid) {
+            $where->where('updated_at', '<', $ts);
+            if ($uuid !== null) {
+                $where->orWhere(fn ($same) => $same->where('updated_at', $ts)->where('uuid', '<=', $uuid));
+            } else {
+                $where->orWhere('updated_at', $ts);
+            }
+        });
     }
 
     /**

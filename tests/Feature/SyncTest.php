@@ -206,8 +206,10 @@ class SyncTest extends TestCase
             ], 200),
         ]);
 
-        app(SyncPushService::class)->run();
+        $result = app(SyncPushService::class)->run();
 
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame(1, $result['pushed']);
         // المقبول اتعلّم synced، المرفوض لسه معلّق (هيُعاد رفعه) — لا ضياع صامت.
         $this->assertNotNull(DB::table('customers')->where('uuid', $acceptedUuid)->value('synced_at'));
         $this->assertNull(DB::table('customers')->where('uuid', $rejectedUuid)->value('synced_at'));
@@ -251,6 +253,7 @@ class SyncTest extends TestCase
         $users = $res->json('tables.users.rows');
         $this->assertCount(1, $users);
         $this->assertSame($ownerId, $users[0]['id']);
+        $this->assertTrue(Hash::check('secret123', $users[0]['password']));
         $this->assertArrayNotHasKey('synced_at', $users[0]);
 
         // sub_users: فقط موظف المالك، وowner_id متحوّل إلى owner_id_uuid (بدون owner_id خام).
@@ -267,6 +270,57 @@ class SyncTest extends TestCase
     }
 
     // ──────────────── pull: keyset pagination بلا تخطّي (الجزء 1ج) ────────────────
+
+    public function test_manifest_scope_matches_pull_and_reports_empty_tables(): void
+    {
+        $ownerId = $this->makeOwner();
+        $otherId = $this->makeOwner(['email' => 'other@test.com', 'uuid' => (string) \Illuminate\Support\Str::ulid()]);
+        $branchId = 'br_OWNER';
+        DB::table('branches')->insert([
+            'branch_id' => $branchId, 'code' => 'A', 'user_id' => $ownerId,
+            'registered_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('sub_users')->insert([
+            ['uuid' => (string) \Illuminate\Support\Str::ulid(), 'owner_id' => $ownerId, 'name' => 'Mine', 'email' => 'mine@test.com', 'password' => 'x', 'created_at' => now(), 'updated_at' => now()],
+            ['uuid' => (string) \Illuminate\Support\Str::ulid(), 'owner_id' => $otherId, 'name' => 'Other', 'email' => 'other-sub@test.com', 'password' => 'x', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $manifest = $this->withHeaders($this->headers())->postJson('/api/sync/manifest', [
+            'branch_id' => $branchId,
+        ])->assertOk()->assertJson(['success' => true, 'version' => 1]);
+        $pull = $this->withHeaders($this->headers())->postJson('/api/sync/pull', [
+            'branch_id' => $branchId,
+            'cursors' => [],
+        ])->assertOk();
+
+        $this->assertSame(count($pull->json('tables.users.rows')), $manifest->json('tables.users.total'));
+        $this->assertSame(count($pull->json('tables.sub_users.rows')), $manifest->json('tables.sub_users.total'));
+        $this->assertSame(0, $manifest->json('tables.drugs.total'));
+        $this->assertNull($manifest->json('tables.drugs.until'));
+    }
+
+    public function test_pull_respects_inclusive_until_cursor(): void
+    {
+        config(['sync.batch_size' => 10]);
+        foreach ([
+            ['01AAAAAAAAAAAAAAAAAAAAAA01', '2026-07-06 10:00:00'],
+            ['01AAAAAAAAAAAAAAAAAAAAAA02', '2026-07-06 10:00:00'],
+            ['01AAAAAAAAAAAAAAAAAAAAAA03', '2026-07-06 11:00:00'],
+        ] as [$uuid, $ts]) {
+            DB::table('drugs')->insert(['uuid' => $uuid, 'name_ar' => $uuid, 'created_at' => $ts, 'updated_at' => $ts]);
+        }
+
+        $response = $this->withHeaders($this->headers())->postJson('/api/sync/pull', [
+            'cursors' => ['drugs' => null],
+            'until' => ['drugs' => ['ts' => '2026-07-06 10:00:00', 'uuid' => '01AAAAAAAAAAAAAAAAAAAAAA02']],
+        ])->assertOk();
+
+        $this->assertSame(
+            ['01AAAAAAAAAAAAAAAAAAAAAA01', '01AAAAAAAAAAAAAAAAAAAAAA02'],
+            array_column($response->json('tables.drugs.rows'), 'uuid')
+        );
+        $this->assertFalse($response->json('tables.drugs.more'));
+    }
 
     public function test_pull_keyset_pagination_does_not_skip_rows_sharing_timestamp(): void
     {

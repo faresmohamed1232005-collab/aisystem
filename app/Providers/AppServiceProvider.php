@@ -3,14 +3,25 @@
 namespace App\Providers;
 
 use App\Listeners\HandleUpdateEvents;
+use App\Services\Diagnostics\PendingFactoryReset;
 use App\Support\Actor;
 use App\Support\Roles;
+use App\Support\Runtime;
 use App\Support\Settings;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
+use Native\Desktop\Events\AutoUpdater\CheckingForUpdate;
+use Native\Desktop\Events\AutoUpdater\DownloadProgress;
+use Native\Desktop\Events\AutoUpdater\Error as AutoUpdaterError;
 use Native\Desktop\Events\AutoUpdater\UpdateAvailable;
+use Native\Desktop\Events\AutoUpdater\UpdateCancelled;
 use Native\Desktop\Events\AutoUpdater\UpdateDownloaded;
+use Native\Desktop\Events\AutoUpdater\UpdateNotAvailable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,18 +30,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // عند التشغيل كتطبيق ديسكتوب (NativePHP)، حوّل قاعدة البيانات تلقائياً إلى SQLite.
-        // NativePHP لا يحزّم MySQL، فاتصال mysql الموروث من بيئة الويب سيفشل دائماً.
-        // الويب يبقى MySQL كما هو لأن المتغير غير مضبوط في بيئة المتصفح.
-        if (env('NATIVEPHP_RUNNING') || config('nativephp-internal.running')) {
-            $dbPath = storage_path('app/pharmacy-branch.sqlite');
-            if (! file_exists($dbPath)) {
-                @mkdir(dirname($dbPath), 0755, true);
-                touch($dbPath);
-            }
+        // NativePHP يمرّر مسار قاعدة الإنتاج الدائمة داخل userData. لا نفرض قاعدة أخرى
+        // في storage لأن NativePHP يعيد كتابة الاتصال لاحقاً، فينتج مساران مختلفان.
+        if (Runtime::isDesktop() && env('NATIVEPHP_DATABASE_PATH')) {
+            $database = (string) env('NATIVEPHP_DATABASE_PATH');
+            // طلب factory reset يُنفّذ قبل أول اتصال SQLite، حتى لا ننقل ملفاً مفتوحاً.
+            $this->app->make(PendingFactoryReset::class)->process($database);
             config([
                 'database.default' => 'sqlite',
-                'database.connections.sqlite.database' => $dbPath,
+                'database.connections.sqlite.database' => $database,
                 'database.connections.sqlite.foreign_key_constraints' => true,
             ]);
         }
@@ -48,11 +56,30 @@ class AppServiceProvider extends ServiceProvider
         // Auth::user() مباشرة، لأن Auth::id() دائماً المالك بينما الفاعل قد يكون موظفاً.
         $this->registerRoleGates();
 
+        // تحذير خفيف للتخطيط: قراءات محلية فقط، بلا تقرير كامل أو اتصال بعيد.
+        View::composer('layouts.app', function ($view): void {
+            $warning = false;
+            try {
+                if (Schema::hasTable('sync_runtime_status')) {
+                    $runtime = DB::table('sync_runtime_status')->where('id', 1)->first(['status', 'consecutive_failures']);
+                    $warning = $runtime && ($runtime->status === 'offline' || (int) $runtime->consecutive_failures > 0);
+                }
+            } catch (Throwable) {
+                $warning = true;
+            }
+            $view->with('diagnosticsWarning', $warning);
+        });
+
         // ربط أحداث التحديث (NativePHP AutoUpdater) بمعالجها.
         // محميّ بـ class_exists حتى لا يفشل تشغيل السيرفر (بيئة الويب بدون NativePHP).
         if (class_exists(UpdateAvailable::class)) {
+            Event::listen(CheckingForUpdate::class, [HandleUpdateEvents::class, 'handleChecking']);
             Event::listen(UpdateAvailable::class, [HandleUpdateEvents::class, 'handleAvailable']);
+            Event::listen(UpdateNotAvailable::class, [HandleUpdateEvents::class, 'handleNotAvailable']);
+            Event::listen(DownloadProgress::class, [HandleUpdateEvents::class, 'handleProgress']);
             Event::listen(UpdateDownloaded::class, [HandleUpdateEvents::class, 'handleDownloaded']);
+            Event::listen(UpdateCancelled::class, [HandleUpdateEvents::class, 'handleCancelled']);
+            Event::listen(AutoUpdaterError::class, [HandleUpdateEvents::class, 'handleError']);
         }
     }
 

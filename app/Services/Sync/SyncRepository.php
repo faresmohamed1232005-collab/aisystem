@@ -2,6 +2,7 @@
 
 namespace App\Services\Sync;
 
+use App\Support\Settings;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -100,16 +101,65 @@ class SyncRepository
         if ($existingId !== null) {
             DB::table($table)->where('id', $existingId)->update($row);
         } else {
-            // preserve_id: أدرج بنفس id السيرفر (users على الفرع فقط).
+            // preserve_id: أدرج بنفس id السيرفر (users على الفرع فقط). قد توجد في قاعدة
+            // Desktop القديمة عينة مستخدم بنفس id؛ نستبدلها فقط إن لم ترتبط بها بيانات تشغيلية.
             if ($preserveId && $incomingId !== null) {
-                $row['id'] = $incomingId;
-                DB::table($table)->insert($row);
-                $newId = $incomingId;
+                $conflictingUuid = DB::table($table)->where('id', $incomingId)->value('uuid');
+                if ($conflictingUuid !== null && $conflictingUuid !== $uuid) {
+                    if ($table === 'users' && $this->isVerifiedOwner($uuid)) {
+                        // UUID هو الهوية العابرة للأجهزة. نُبقي id المحلي حتى تظل كل
+                        // علاقات بيانات العمل سليمة، ونحدّث صفه بهوية وبيانات المالك الموثقة.
+                        $row['uuid'] = $uuid;
+                        DB::table($table)->where('id', $incomingId)->update($row);
+                        $newId = $incomingId;
+                    } elseif ($table !== 'users' || $this->userHasOperationalData((int) $incomingId)) {
+                        throw new \RuntimeException("تعارض id محفوظ: {$table}#{$incomingId}");
+                    } else {
+                        DB::table($table)->where('id', $incomingId)->update($row);
+                        $newId = $incomingId;
+                    }
+                } else {
+                    $row['id'] = $incomingId;
+                    DB::table($table)->insert($row);
+                    $newId = $incomingId;
+                }
             } else {
                 $newId = DB::table($table)->insertGetId($row);
             }
             $this->uuidToId[$table][$uuid] = $newId;
         }
+    }
+
+    private function isVerifiedOwner(string $uuid): bool
+    {
+        $ownerUuid = (string) Settings::get('branch.owner_uuid', '');
+
+        return $ownerUuid !== '' && hash_equals($ownerUuid, $uuid);
+    }
+
+    /** هل المستخدم المحلي المتعارض مرتبط بأي بيانات يجب عدم لمسها؟ */
+    private function userHasOperationalData(int $userId): bool
+    {
+        $tables = array_values(array_unique(array_merge(
+            config('sync.push', []),
+            config('sync.bidirectional', []),
+            config('sync.pull_owner_scoped', []),
+            ['sub_users']
+        )));
+
+        foreach ($tables as $table) {
+            if (! \Illuminate\Support\Facades\Schema::hasTable($table)) {
+                continue;
+            }
+
+            $column = $table === 'sub_users' ? 'owner_id' : 'user_id';
+            if (\Illuminate\Support\Facades\Schema::hasColumn($table, $column)
+                && DB::table($table)->where($column, $userId)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'super.admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
             'sync.auth'   => \App\Http\Middleware\SyncAuth::class,
+            'web.only'    => \App\Http\Middleware\WebOnly::class,
+            'diagnostics.access' => \App\Http\Middleware\DiagnosticsAccess::class,
         ]);
 
         // على الديسكتوب غير المُسجَّل: وجّه كل طلبات الويب إلى شاشة الإعداد أولاً.
