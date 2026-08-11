@@ -157,6 +157,20 @@ php artisan optimize:clear</pre>
 
     <div class="note"><strong>اقتراح للإنتاج:</strong> الأفضل مستقبلًا استبدال رابط السيرفر وSYNC_TOKEN بكود تفعيل واحد يصدره الأدمن، حتى تكون شاشة العميل أبسط وأكثر أمانًا.</div>
 
+    <h2>إنشاء نسخة Windows من GitHub Actions</h2>
+    <ol>
+        <li>افتح مستودع المشروع على GitHub، ثم اختر <code>Actions</code>.</li>
+        <li>اختر Workflow باسم <code>Build Desktop Windows</code>.</li>
+        <li>اضغط <code>Run workflow</code>، واختر فرع <code>main</code>، ثم ابدأ التشغيل.</li>
+        <li>انتظر نجاح خطوات الاختبارات وBuild Guard وبناء NativePHP.</li>
+        <li>من أسفل صفحة التشغيل نزّل Artifact الذي يبدأ اسمه بـ <code>pharmacy-desktop-windows-x64-</code>.</li>
+        <li>فك الملف المضغوط، ثم تحقق من SHA-256 بمقارنة ملف <code>SHA256SUMS.txt</code> مع الأمر <code>Get-FileHash .\اسم-الملف-setup.exe -Algorithm SHA256</code>.</li>
+        <li>جرّب ملف <code>*-setup.exe</code> أولًا داخل Windows Sandbox أو VM أو جهاز اختبار لا يحتوي بيانات عمل.</li>
+    </ol>
+    <div class="warning">
+        الـBuild يتم على جهاز Windows مؤقت تابع لـGitHub باستخدام SQLite معزولة، ولا يصل إلى Laragon أو MySQL أو ملفات AppData على أجهزة العمل. قد يظهر تحذير Windows SmartScreen لأن ملف التثبيت التجريبي غير موقّع بشهادة Code Signing.
+    </div>
+
     <footer class="footer">هذا الملف لا يحتوي أي مفاتيح أو كلمات مرور حقيقية، ويمكن مشاركته أو حفظه بصيغة PDF بأمان.</footer>
 </main>
 </body>

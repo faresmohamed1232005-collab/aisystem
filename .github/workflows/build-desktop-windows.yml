@@ -1,0 +1,129 @@
+name: Build Desktop Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: Build Windows x64 installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout selected commit
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, openssl, pdo_sqlite, sqlite3, fileinfo, curl
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Create isolated desktop environment
+        shell: pwsh
+        run: |
+          @'
+          APP_NAME="Pharmacy Management System"
+          APP_ENV=production
+          APP_KEY=
+          APP_DEBUG=false
+          APP_URL=http://localhost
+          LOG_CHANNEL=stderr
+
+          DB_CONNECTION=sqlite
+          DB_DATABASE=:memory:
+
+          CACHE_STORE=array
+          SESSION_DRIVER=array
+          QUEUE_CONNECTION=sync
+
+          BRANCH_ID=
+          BRANCH_CODE=
+          SYNC_ENABLED=false
+          SYNC_SERVER_URL=
+          SYNC_TOKEN=
+
+          NATIVEPHP_APP_ID=com.pharmacy.pos
+          NATIVEPHP_APP_VERSION=1.1.0
+          NATIVEPHP_APP_AUTHOR="Pharmacy System"
+          NATIVEPHP_APP_DESCRIPTION="Pharmacy Management System"
+          NATIVEPHP_UPDATER_ENABLED=false
+          GITHUB_OWNER=
+          GITHUB_REPO=
+          GITHUB_TOKEN=
+          '@ | Set-Content -Path .env.desktop-build -Encoding utf8
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Generate temporary application key
+        shell: pwsh
+        run: |
+          php artisan key:generate --env=desktop-build --force --no-interaction
+          $appKey = Get-Content .env.desktop-build |
+              Where-Object { $_ -like 'APP_KEY=*' } |
+              Select-Object -First 1
+          if (-not $appKey -or $appKey -eq 'APP_KEY=') {
+              throw 'Failed to generate the temporary APP_KEY.'
+          }
+          $appKey | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run application tests
+        run: php artisan test
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Run desktop build guard
+        run: php artisan desktop:build-guard --env=desktop-build
+
+      - name: Build Windows installer
+        run: php artisan native:build win x64 --env=desktop-build --no-interaction
+
+      - name: Verify installer and create checksum
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path nativephp/electron/dist -Filter '*-setup.exe' -File)
+          if ($installers.Count -eq 0) {
+              throw 'NativePHP did not produce a Windows setup executable.'
+          }
+
+          $checksumPath = Join-Path $installers[0].DirectoryName 'SHA256SUMS.txt'
+          $checksumLines = foreach ($installer in $installers) {
+              if ($installer.Length -eq 0) {
+                  throw "Installer is empty: $($installer.FullName)"
+              }
+
+              $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($installer.Name)"
+          }
+          $checksumLines | Set-Content -Path $checksumPath -Encoding ascii
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-desktop-windows-x64-${{ github.sha }}
+          path: |
+            nativephp/electron/dist/*-setup.exe
+            nativephp/electron/dist/*.yml
+            nativephp/electron/dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
