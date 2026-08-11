@@ -86,11 +86,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Run application tests
-        run: php artisan test
-
       - name: Build frontend assets
         run: npm run build
+
+      - name: Run application tests
+        run: php artisan test
 
       - name: Run desktop build guard
         run: php artisan desktop:build-guard --env=desktop-build
