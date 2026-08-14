@@ -95,6 +95,11 @@ jobs:
       - name: Run desktop build guard
         run: php artisan desktop:build-guard --env=desktop-build
 
+      - name: Validate route cache (fail early on duplicate route names)
+        run: |
+          php artisan route:cache --env=desktop-build
+          php artisan route:clear
+
       - name: Build Windows installer
         run: php artisan native:build win x64 --env=desktop-build --no-interaction
 

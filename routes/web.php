@@ -108,9 +108,9 @@ Route::middleware('auth')->group(function () {
         ->middleware('can:view_reports')->name('reports.branches');
 
     // ===== Products =====
-    // search لازم قبل resource دايماً
-    Route::get('/products-search', [ProductController::class, 'search'])->name('products.search');
-    Route::resource('products', ProductController::class);
+    // ملاحظة: راوت البحث والـ index باسم products.* معرّفان في مجموعة "مخزن اليوزر" أدناه
+    // (ProductsController). نستثني index هنا لتفادي تكرار اسم الراوت الذي يُفشِل route:cache.
+    Route::resource('products', ProductController::class)->except(['index']);
 
     // ===== Sales =====
     Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
@@ -263,7 +263,7 @@ Route::middleware('auth')->group(function () {
     // مخزن اليوزر — القراءة/البحث لأي فاعل مسجّل؛ الكتابة تحتاج manage_stock.
     Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
     Route::get('/products/catalog', [ProductsController::class, 'catalog'])->name('products.catalog');
-    Route::get('/products/search', [ProductsController::class, 'search'])->name('products.search');
+    Route::get('/products/search', [ProductsController::class, 'search'])->name('products.search.slash');
     Route::get('/products/barcode', [ProductsController::class, 'findByBarcode'])->name('products.barcode');
     Route::get('/products-search', [ProductsController::class, 'search'])->name('products.search');
 

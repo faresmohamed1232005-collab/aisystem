@@ -41,6 +41,20 @@ class AppServiceProvider extends ServiceProvider
                 'database.connections.sqlite.database' => $database,
                 'database.connections.sqlite.foreign_key_constraints' => true,
             ]);
+
+            // NativePHP قد يبني الحزمة بلا ملف .env، فلا يصل APP_KEY وقت التشغيل ويُرمى
+            // MissingAppKeyException (صفحة 500 بيضاء). نضمن مفتاح تشفير دائماً لكل تثبيت:
+            // نخزّنه بجوار قاعدة البيانات في userData القابل للكتابة، ونحقنه وقت التشغيل
+            // فيتغلّب على كاش الإعدادات — تماماً كأوفررايد مسار القاعدة أعلاه.
+            if (empty(config('app.key'))) {
+                $keyFile = dirname($database) . DIRECTORY_SEPARATOR . 'app.key';
+                $key = is_file($keyFile) ? trim((string) @file_get_contents($keyFile)) : '';
+                if ($key === '') {
+                    $key = 'base64:' . base64_encode(random_bytes(32));
+                    @file_put_contents($keyFile, $key, LOCK_EX);
+                }
+                config(['app.key' => $key]);
+            }
         }
     }
 
