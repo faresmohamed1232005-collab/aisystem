@@ -244,11 +244,18 @@ class SyncPullService
         $existing = DB::table('sync_table_progress')
             ->where('table_name', $table)->where('direction', 'pull')->first();
 
-        // Initial-sync totals and completion are historical snapshot metadata; normal pulls must not replace them.
+        // نحافظ على sync_mode='initial' و total_rows كلقطة أولى (سياق «كم صف نزّلنا مبدئياً»)،
+        // لكن لا نُجمّد بقية الأرقام: كل سحب لاحق يُحدّث الحالة وآخر محاولة وآخر خطأ، ويزيد
+        // العدّادات بما جرى فعلياً — حتى يرى المستخدم في مركز التشخيص أن المزامنة تعمل وتتقدّم.
         if ($existing && $existing->sync_mode === 'initial') {
             DB::table('sync_table_progress')->where('id', $existing->id)->update([
+                'status' => $error ? 'failed' : 'completed',
+                'succeeded_rows' => (int) $existing->succeeded_rows + ($error ? 0 : $pulled),
+                'processed_rows' => (int) $existing->processed_rows + ($error ? 0 : $pulled),
+                'failed_rows' => (int) $existing->failed_rows + ($error ? 1 : 0),
                 'last_attempt_at' => now(),
                 'last_error' => $error,
+                'completed_at' => $error ? $existing->completed_at : now(),
                 'updated_at' => now(),
             ]);
             return;

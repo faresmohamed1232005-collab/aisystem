@@ -277,5 +277,24 @@ async function runUpdateAction(url) {
         else alert(error.message || 'تعذّر تنفيذ عملية التحديث');
     }
 }
+
+// تحديث حيّ خفيف: نراقب حالة المزامنة والتحديث عبر endpoint القراءة فقط، ونعيد التحميل فقط
+// عند تغيّر فعلي (فتتحرك الأرقام تلقائياً بلا حاجة لزر «تحديث الحالة»، وبلا وميض مستمر).
+(function () {
+    const statusUrl = '{{ route('diagnostics.status') }}';
+    let signature = null;
+    async function poll() {
+        try {
+            const res = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+            const data = await res.json();
+            const sig = JSON.stringify((data && data.report && data.report.sync) || {})
+                + '|' + JSON.stringify((data && data.update) || {});
+            if (signature === null) { signature = sig; return; }
+            if (sig !== signature) { location.reload(); }
+        } catch (e) { /* تجاهل انقطاع الشبكة المؤقت */ }
+    }
+    setInterval(poll, 15000);
+})();
 </script>
 @endsection

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use App\Services\Ai\ChatGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 
 class MarketPriceCheckController extends Controller
@@ -14,7 +14,7 @@ class MarketPriceCheckController extends Controller
     const HIGH_THRESHOLD    = 0.15; // 15%
     const LOW_THRESHOLD     = 0.15;
 
-    public function run(Request $request)
+    public function run(Request $request, ChatGateway $ai)
     {
         // حماية بسيطة: مفتاح سري في الرابط
         $secret = config('services.cron.secret');
@@ -22,8 +22,8 @@ class MarketPriceCheckController extends Controller
             abort(403);
         }
 
-        $apiKey = config('services.openai.key');
-        if (empty($apiKey)) {
+        // كرون على السيرفر المركزي — يجب أن يملك مفتاح OpenAI محلياً.
+        if (empty(config('services.openai.key'))) {
             return response()->json(['error' => 'OpenAI key not configured'], 500);
         }
 
@@ -68,7 +68,7 @@ class MarketPriceCheckController extends Controller
 
             foreach ($topDrugs as $drug) {
                 $totalChecked++;
-                if ($this->checkOne($userId, $drug, $apiKey)) {
+                if ($this->checkOne($userId, $drug, $ai)) {
                     $totalAlerts++;
                 }
                 usleep(500000); // نصف ثانية بين كل استعلام
@@ -83,7 +83,7 @@ class MarketPriceCheckController extends Controller
         ]);
     }
 
- private function checkOne(int $userId, $drug, string $apiKey): bool
+ private function checkOne(int $userId, $drug, ChatGateway $ai): bool
 {
     $name = $drug->name;
     if (empty($name)) return false;
@@ -115,23 +115,20 @@ class MarketPriceCheckController extends Controller
 PROMPT;
 
     try {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $apiKey,
-            'Content-Type'  => 'application/json',
-        ])->timeout(40)->post('https://api.openai.com/v1/chat/completions', [
+        $result = $ai->chatCompletion([
             'model'       => config('services.openai.model', 'gpt-4o-mini'),
             'messages'    => [
                 ['role' => 'user', 'content' => $prompt],
             ],
             'max_tokens'  => 300,
             'temperature' => 0.3,
-        ]);
+        ], timeout: 40);
 
-        if (!$response->successful()) {
+        if (! $result['ok']) {
             return false;
         }
 
-        $content = trim($response->json('choices.0.message.content', ''));
+        $content = trim((string) data_get($result['json'], 'choices.0.message.content', ''));
         $content = preg_replace('/```json|```/', '', $content);
         $content = trim($content);
 

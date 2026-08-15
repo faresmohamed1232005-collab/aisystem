@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AiProxyController;
 use App\Http\Controllers\Api\SyncController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,4 +28,16 @@ Route::middleware('sync.auth')->prefix('sync')->group(function () {
 
     // إرسال تحديثات الكتالوج/المراجع للفرع (Pull من السيرفر → الفرع).
     Route::post('/pull', [SyncController::class, 'pull'])->name('sync.pull');
+});
+
+/*
+|--------------------------------------------------------------------------
+| وكيل الذكاء الاصطناعي — السيرفر المركزي يحمل مفتاح OpenAI نيابةً عن الفروع
+|--------------------------------------------------------------------------
+| الفروع (الديسكتوب) لا تحمل المفتاح؛ تُرسل حمولة chat هنا بـ X-Sync-Token.
+*/
+Route::middleware('sync.auth')->prefix('ai')->group(function () {
+    Route::post('/chat', [AiProxyController::class, 'chat'])
+        ->middleware('throttle:30,1')
+        ->name('ai.chat');
 });

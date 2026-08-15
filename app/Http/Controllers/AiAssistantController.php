@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Ai\ChatGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AiAssistantController extends Controller
 {
-    public function chat(Request $request)
+    public function chat(Request $request, ChatGateway $ai)
     {
         $request->validate([
             'message' => 'required|string|max:1000',
@@ -60,34 +60,21 @@ PROMPT;
         // ✅ تنظيف كل النصوص قبل الإرسال لمنع خطأ json_encode
         $messages = $this->cleanArray($messages);
 
-        $apiKey = config('services.openai.key');
+        // على الويب: مفتاح محلي → نداء مباشر. على الديسكتوب: يوجّه ChatGateway الطلب
+        // للسيرفر المركزي (الذي يملك المفتاح) بمفتاح المزامنة.
+        $result = $ai->chatCompletion([
+            'model'       => config('services.openai.model', 'gpt-4o-mini'),
+            'messages'    => $messages,
+            'max_tokens'  => 1000,
+            'temperature' => 0.7,
+        ], timeout: 30);
 
-        if (empty($apiKey)) {
-            return response()->json(['error' => '⚠️ لم يتم ضبط مفتاح OpenAI في الإعدادات.'], 500);
+        if (! $result['ok']) {
+            return response()->json(['error' => '⚠️ ' . $result['error']], 500);
         }
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type'  => 'application/json',
-            ])->timeout(30)->post('https://api.openai.com/v1/chat/completions', [
-                'model'       => config('services.openai.model', 'gpt-4o-mini'),
-                'messages'    => $messages,
-                'max_tokens'  => 1000,
-                'temperature' => 0.7,
-            ]);
-
-            if ($response->successful()) {
-                $reply = $response->json('choices.0.message.content');
-                return response()->json(['reply' => $reply]);
-            }
-
-            $error = $response->json('error.message', 'خطأ في OpenAI API');
-            return response()->json(['error' => '⚠️ ' . $error], 500);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => '⚠️ تعذر الاتصال بـ OpenAI: ' . $e->getMessage()], 500);
-        }
+        $reply = data_get($result['json'], 'choices.0.message.content');
+        return response()->json(['reply' => $reply]);
     }
 
     // =====================================================

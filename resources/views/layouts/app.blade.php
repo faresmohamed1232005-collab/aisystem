@@ -479,6 +479,24 @@
                         </div>
                     @endif
 
+                    @if (session('error'))
+                        <div class="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-sm max-w-md truncate" title="{{ session('error') }}">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
+                    @if (session('warning'))
+                        <div class="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg text-sm max-w-md truncate" title="{{ session('warning') }}">
+                            {{ session('warning') }}
+                        </div>
+                    @endif
+
+                    @if ($errors->any())
+                        <div class="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-sm max-w-md truncate" title="{{ $errors->first() }}">
+                            {{ $errors->first() }}
+                        </div>
+                    @endif
+
                     {{-- زر تحميل تطبيق سطح المكتب: في المتصفح فقط (ليس داخل تطبيق الديسكتوب نفسه) --}}
                     @if (config('sync.desktop_download_url') && ! config('nativephp-internal.running'))
                         <a href="{{ config('sync.desktop_download_url') }}" target="_blank" rel="noopener"

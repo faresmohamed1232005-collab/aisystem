@@ -18,6 +18,24 @@
             <a href="{{ route('login') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/10">العودة لتسجيل الدخول</a>
         </div>
     </header>
-    <main class="mx-auto max-w-7xl p-4 sm:p-6">@yield('content')</main>
+    <main class="mx-auto max-w-7xl p-4 sm:p-6">
+        @if (session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{{ session('error') }}</div>
+        @endif
+        @if (session('warning'))
+            <div class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">{{ session('warning') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                <ul class="list-disc space-y-1 pr-5">
+                    @foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+                </ul>
+            </div>
+        @endif
+        @yield('content')
+    </main>
 </body>
 </html>

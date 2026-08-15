@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Drug;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class DrugsSeeder extends Seeder
@@ -44,6 +45,7 @@ class DrugsSeeder extends Seeder
         $errors = 0;
         $batchSize = 100;
         $batch = [];
+        $now = now();
 
         foreach ($matches as $match) {
             $columns = $this->parseColumns($match[1]);
@@ -69,6 +71,15 @@ class DrugsSeeder extends Seeder
                     $row[$k] = null;
                 }
             }
+
+            // أعمدة المزامنة: الإدراج الخام (DB::insert) يتخطّى Eloquent فلا يعمل هوك
+            // Syncable::creating الذي يولّد الـ uuid. نضيفها يدوياً هنا وإلا صار كل صف
+            // على الماستر بـ uuid=NULL فيرفضه الفرع عند السحب («صف بدون uuid»). كذلك
+            // updated_at لازم يكون له قيمة لأن الـ pull cursor (keyset) يعتمد عليه.
+            $row['uuid']       = (string) Str::ulid();
+            $row['branch_id']  = config('sync.server_branch_id', 'server');
+            $row['created_at'] = $row['created_at'] ?? $now;
+            $row['updated_at'] = $row['updated_at'] ?? $now;
 
             $batch[] = $row;
 

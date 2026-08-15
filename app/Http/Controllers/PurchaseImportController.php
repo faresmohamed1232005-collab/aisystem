@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Drug;
+use App\Services\Ai\ChatGateway;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Support\PurchaseExpiry;
 
@@ -18,7 +18,7 @@ class PurchaseImportController extends Controller
 
     /* استخراج بيانات الفاتورة من الصورة عبر OpenAI Vision
        يستقبل إما صورة واحدة (image) أو عدة شرائح متراكبة (images[]) من نفس الفاتورة */
-    public function extract(Request $request)
+    public function extract(Request $request, ChatGateway $ai)
     {
         $request->validate([
             'image'     => 'sometimes|image|mimes:jpeg,jpg,png,webp|max:8192',
@@ -34,14 +34,6 @@ class PurchaseImportController extends Controller
         }
         if (empty($files)) {
             return response()->json(['success' => false, 'message' => 'لم يتم رفع أي صورة.'], 422);
-        }
-
-        $apiKey = config('services.openai.key');
-        if (empty($apiKey)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'مفتاح OpenAI غير مضبوط في الإعدادات (OPENAI_API_KEY).',
-            ], 500);
         }
 
         try {
@@ -98,10 +90,9 @@ class PurchaseImportController extends Controller
 أعد JSON مضغوط صحيح فقط.
 PROMPT;
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type'  => 'application/json',
-            ])->timeout(180)->post('https://api.openai.com/v1/chat/completions', [
+            // على الويب: مفتاح محلي → نداء مباشر. على الديسكتوب: يوجّه ChatGateway الطلب
+            // للسيرفر المركزي (الذي يملك المفتاح).
+            $result = $ai->chatCompletion([
                 'model'           => 'gpt-4o',
                 'temperature'     => 0,
                 'max_tokens'      => 16000,
@@ -113,16 +104,15 @@ PROMPT;
                         $imageContents
                     ),
                 ]],
-            ]);
+            ], timeout: 180);
 
-            if (!$response->successful()) {
-                $err = $response->json('error.message', 'فشل الاتصال بـ OpenAI');
-                Log::error('Invoice OCR error: ' . $err);
-                return response()->json(['success' => false, 'message' => 'خطأ في القراءة: ' . $err], 500);
+            if (! $result['ok']) {
+                Log::error('Invoice OCR error: ' . $result['error']);
+                return response()->json(['success' => false, 'message' => 'خطأ في القراءة: ' . $result['error']], 500);
             }
 
-            $finish  = $response->json('choices.0.finish_reason');
-            $content = $response->json('choices.0.message.content', '');
+            $finish  = data_get($result['json'], 'choices.0.finish_reason');
+            $content = data_get($result['json'], 'choices.0.message.content', '');
             $data    = json_decode($content, true);
 
             if (!is_array($data) || empty($data['items'])) {

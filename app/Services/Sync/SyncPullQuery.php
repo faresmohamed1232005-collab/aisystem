@@ -31,7 +31,10 @@ class SyncPullQuery
 
     public function scoped(string $table, ?string $branchId, ?int $ownerId = null): Builder
     {
-        $query = DB::table($table);
+        // دفاع عميق: لا نبثّ أبداً صفاً بـ uuid فارغ — لا يمكن مزامنته بالـ uuid ويفسد الـ
+        // keyset cursor (يجعل tiebreaker الـ uuid فارغاً). الـ backfill يصلّح المصدر، وهذا
+        // يمنع أي صف تالف متبقٍّ من إيقاف السحب («صف بدون uuid»).
+        $query = DB::table($table)->whereNotNull('uuid');
         $ownerId ??= $this->ownerId($branchId);
         $pullScoped = config('sync.pull_scoped', []);
 
