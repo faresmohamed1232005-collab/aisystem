@@ -161,8 +161,12 @@ class DiagnosticsTest extends TestCase
         Settings::set('sync.token', 'test-secret-token');
         config(['sync.branch_id' => 'br_TEST']);
 
-        $this->get(route('login'))->assertSee(route('diagnostics.page'), false);
+        // شاشة التنزيل (أثناء أول مزامنة) تربط بالتشخيص — متاحة قبل ضبط العلَم.
         $this->get(route('setup.sync.show'))->assertSee(route('diagnostics.page'), false);
+
+        // بعد اكتمال أول مزامنة تصبح شاشة الدخول متاحة وتربط بالتشخيص أيضاً.
+        Settings::set('initial_setup_completed_at', now()->toDateTimeString());
+        $this->get(route('login'))->assertSee(route('diagnostics.page'), false);
     }
 
     public function test_update_actions_are_available_only_to_desktop_owner(): void

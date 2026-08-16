@@ -57,7 +57,17 @@ class DesktopEntryPointTest extends TestCase
         $this->post('/register')->assertRedirectToRoute('login');
     }
 
-    private function registerDesktopBranch(): void
+    public function test_registered_desktop_without_completed_sync_is_held_at_setup_sync(): void
+    {
+        // مسجّل لكن أول مزامنة لم تكتمل (لا علَم) → بوابة Part A تحوّشه لشاشة التنزيل،
+        // فلا يدخل التطبيق بقاعدة نصف محمّلة.
+        $this->registerDesktopBranch(completed: false);
+
+        $this->get('/')->assertRedirectToRoute('setup.sync.show');
+        $this->get('/login')->assertRedirectToRoute('setup.sync.show');
+    }
+
+    private function registerDesktopBranch(bool $completed = true): void
     {
         config(['nativephp-internal.running' => true]);
         Settings::set('branch.id', 'br_TEST');
@@ -65,5 +75,11 @@ class DesktopEntryPointTest extends TestCase
         Settings::set('sync.server_url', 'https://server.test');
         Settings::set('sync.token', 'test-token');
         config(['sync.branch_id' => 'br_TEST']);
+
+        // ديسكتوب مكتمل الإعداد (المسار الطبيعي بعد أول مزامنة). مرّر completed:false
+        // لاختبار حالة ما-قبل-الاكتمال حيث تحوّش البوابة المستخدم لشاشة التنزيل.
+        if ($completed) {
+            Settings::set('initial_setup_completed_at', now()->toDateTimeString());
+        }
     }
 }

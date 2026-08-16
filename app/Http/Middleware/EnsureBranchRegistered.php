@@ -27,6 +27,9 @@ class EnsureBranchRegistered
             // ولإتاحة إعادة الضبط المحلي عند القفل).
             $allowed = $request->is(
                 'setup', 'setup/*', 'settings/diagnostics', 'settings/diagnostics/*',
+                // تحديث التطبيق أداة صيانة — يبقى متاحاً حتى قبل اكتمال الإعداد (قد يلزم
+                // تحديث النسخة لإصلاح مشكلة إعداد)؛ صلاحية المالك تُفرض داخل المتحكّم.
+                'update/*',
                 'up', 'build/*', 'css/*', 'js/*', 'images/*', 'favicon.ico'
             );
 
