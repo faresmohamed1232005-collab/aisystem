@@ -81,7 +81,16 @@
             sub_users: 'حسابات الموظفين', branches: 'الفروع', contracts: 'التعاقدات',
             insurance_rules: 'قواعد التأمين', pricing_rules: 'قواعد التسعير',
             insured_patients: 'المرضى المؤمن عليهم', stock_transfers: 'تحويلات المخزون',
-            stock_transfer_items: 'بنود التحويلات', branch_inventory_snapshots: 'أرصدة الفروع'
+            stock_transfer_items: 'بنود التحويلات', branch_inventory_snapshots: 'أرصدة الفروع',
+            products: 'المنتجات', customers: 'العملاء', suppliers: 'الموردون',
+            employees: 'الموظفون', expenses: 'المصروفات', employee_transactions: 'حركات الموظفين',
+            sales: 'المبيعات', sale_items: 'بنود المبيعات', sale_payments: 'مدفوعات المبيعات',
+            sale_returns: 'مرتجعات المبيعات', sale_return_items: 'بنود المرتجعات',
+            purchase_invoices: 'فواتير الشراء', purchase_invoice_items: 'بنود فواتير الشراء',
+            purchase_payments: 'مدفوعات الشراء', purchase_returns: 'مرتجعات الشراء',
+            purchase_return_items: 'بنود مرتجعات الشراء', pending_orders: 'الطلبات المعلّقة',
+            pending_order_items: 'بنود الطلبات المعلّقة', insurance_claims: 'مطالبات التأمين',
+            insurance_claim_items: 'بنود مطالبات التأمين', user_drug_inventory: 'مخزون الأدوية'
         };
         const csrf = document.querySelector('meta[name="csrf-token"]').content;
         const start = document.getElementById('start');

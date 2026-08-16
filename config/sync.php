@@ -216,6 +216,21 @@ return [
         'insurance_rules',
         'pricing_rules',
         'insured_patients',
+
+        /*
+        | mirror كامل (Phase 2ب): الديسكتوب = نسخة كاملة من الموقع. بيانات المالك
+        | التشغيلية تُسحب owner-scoped عند أول إعداد (فيبدأ الفرع ممتلئاً ويعمل offline)
+        | وتستمر ثنائية الاتجاه (push موجود + pull هنا). الترتيب: الأب قبل الابن دائماً
+        | حتى تُترجم FK الأبناء (<fk>_uuid → id محلي) بعد وصول آبائها.
+        |
+        | (B1) مراجع المالك — كلها فيها user_id فتُفلتر بـ pull_owner_scoped.
+        */
+        'products',
+        'customers',
+        'suppliers',
+        'employees',
+        'expenses',
+        'employee_transactions',
     ],
 
     /*
@@ -233,6 +248,14 @@ return [
         'insurance_rules',
         'pricing_rules',
         'insured_patients',
+
+        // mirror كامل (Phase 2ب) — B1: مراجع المالك (فيها user_id مباشرةً).
+        'products',
+        'customers',
+        'suppliers',
+        'employees',
+        'expenses',
+        'employee_transactions',
     ],
 
     /*
