@@ -37,6 +37,7 @@ class SyncPullQuery
         $query = DB::table($table)->whereNotNull('uuid');
         $ownerId ??= $this->ownerId($branchId);
         $pullScoped = config('sync.pull_scoped', []);
+        $parentScoped = config('sync.pull_parent_scoped', []);
 
         if ($table === 'users') {
             $query->where('id', $ownerId ?? -1);
@@ -44,6 +45,12 @@ class SyncPullQuery
             $query->where('owner_id', $ownerId ?? -1);
         } elseif (isset($pullScoped[$table])) {
             $this->applyStrategy($query, $pullScoped[$table], $ownerId, $branchId);
+        } elseif (isset($parentScoped[$table])) {
+            // بنود بلا user_id: تُقيَّد بمالك أبيها — تظهر فقط إن كان أبوها لمالك الفرع.
+            $spec = $parentScoped[$table];
+            $query->whereIn($spec['fk'], function ($sub) use ($spec, $ownerId) {
+                $sub->select('id')->from($spec['parent'])->where('user_id', $ownerId ?? -1);
+            });
         } elseif (in_array($table, config('sync.pull_owner_scoped', []), true)) {
             $query->where('user_id', $ownerId ?? -1);
         }

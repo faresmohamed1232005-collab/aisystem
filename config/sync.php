@@ -231,6 +231,28 @@ return [
         'employees',
         'expenses',
         'employee_transactions',
+
+        /*
+        | (B2) البيانات التشغيلية: المبيعات والمشتريات والمرتجعات والطلبات والمطالبات
+        | + بنودها. الآباء فيها user_id (pull_owner_scoped)؛ بنود بلا user_id
+        | (sale_items...) تُقيَّد بمالك أبيها عبر pull_parent_scoped. الترتيب حرِج:
+        | كل أب قبل بنوده، والبند الذي يشير لبند آخر يأتي بعده (sale_return_items بعد
+        | sale_items، purchase_return_items بعد purchase_invoice_items).
+        */
+        'sales',
+        'sale_items',
+        'sale_payments',
+        'sale_returns',
+        'sale_return_items',
+        'purchase_invoices',
+        'purchase_invoice_items',
+        'purchase_payments',
+        'purchase_returns',
+        'purchase_return_items',
+        'pending_orders',
+        'pending_order_items',
+        'insurance_claims',
+        'insurance_claim_items',
     ],
 
     /*
@@ -256,6 +278,36 @@ return [
         'employees',
         'expenses',
         'employee_transactions',
+
+        // B2: آباء البيانات التشغيلية (كلها فيها user_id).
+        'sales',
+        'sale_payments',
+        'sale_returns',
+        'purchase_invoices',
+        'purchase_payments',
+        'purchase_returns',
+        'pending_orders',
+        'insurance_claims',
+        'insurance_claim_items',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | جداول pull مقيّدة بمالك أبيها (parent owner-scoped) — Phase 2ب
+    |--------------------------------------------------------------------------
+    |
+    | بنود المعاملات (sale_items...) لا تملك عمود user_id، فنقيّدها بمالك صفّها الأب:
+    | تُسحب فقط البنود التي ينتمي أبوها (sale/purchase_invoice...) لمالك الفرع. الصيغة:
+    | 'child' => ['fk' => عمود الأب في الابن, 'parent' => جدول الأب]. يُطبَّق في
+    | SyncPullQuery::scoped عبر whereIn(fk, subquery: id from parent where user_id=المالك).
+    |
+    */
+    'pull_parent_scoped' => [
+        'sale_items'             => ['fk' => 'sale_id', 'parent' => 'sales'],
+        'sale_return_items'      => ['fk' => 'sale_return_id', 'parent' => 'sale_returns'],
+        'purchase_invoice_items' => ['fk' => 'purchase_invoice_id', 'parent' => 'purchase_invoices'],
+        'purchase_return_items'  => ['fk' => 'purchase_return_id', 'parent' => 'purchase_returns'],
+        'pending_order_items'    => ['fk' => 'pending_order_id', 'parent' => 'pending_orders'],
     ],
 
     /*

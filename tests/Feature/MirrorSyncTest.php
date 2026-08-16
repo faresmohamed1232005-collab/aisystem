@@ -106,4 +106,87 @@ class MirrorSyncTest extends TestCase
         $this->assertSame($empUuid, $rows[0]['employee_id_uuid']); // FK متحوّل لـ uuid
         $this->assertArrayNotHasKey('employee_id', $rows[0]);      // id المحلي لا يُبَثّ
     }
+
+    private function makeDrug(string $name = 'دواء'): string
+    {
+        $uuid = (string) Str::ulid();
+        DB::table('drugs')->insert(['uuid' => $uuid, 'name_ar' => $name, 'created_at' => now(), 'updated_at' => now()]);
+        return $uuid;
+    }
+
+    private function makeSale(int $owner, string $invoice): array
+    {
+        $uuid = (string) Str::ulid();
+        $id = DB::table('sales')->insertGetId([
+            'uuid' => $uuid, 'user_id' => $owner, 'invoice_number' => $invoice,
+            'total' => 100, 'paid' => 100, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        return [$id, $uuid];
+    }
+
+    /** المبيعات owner-scoped، وبنودها (بلا user_id) parent-scoped: بند البيع لمالك آخر لا يُسحب. */
+    public function test_sale_items_are_parent_scoped_and_fk_translated_on_pull(): void
+    {
+        $owner = $this->makeOwner();
+        $other = $this->makeOwner(['email' => 'other@test.com', 'uuid' => (string) Str::ulid()]);
+        $this->makeBranch('br_A', 'A', $owner);
+        $drug = $this->makeDrug();
+        $drugId = DB::table('drugs')->where('uuid', $drug)->value('id');
+        $now = now()->toDateTimeString();
+
+        [$mineId, $mineUuid] = $this->makeSale($owner, 'INV-MINE');
+        [$otherId] = $this->makeSale($other, 'INV-OTHER');
+
+        $mineItemUuid = (string) Str::ulid();
+        DB::table('sale_items')->insert([
+            'uuid' => $mineItemUuid, 'sale_id' => $mineId, 'drug_id' => $drugId,
+            'quantity' => 2, 'price' => 50, 'subtotal' => 100, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        // بند بيع مالك آخر — يجب ألا يُسحب لفرع owner.
+        DB::table('sale_items')->insert([
+            'uuid' => (string) Str::ulid(), 'sale_id' => $otherId, 'drug_id' => $drugId,
+            'quantity' => 9, 'price' => 9, 'subtotal' => 81, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+
+        $res = $this->pull('br_A')->assertOk();
+
+        // المبيعات: مبيعة المالك فقط.
+        $this->assertSame(['INV-MINE'], array_column($res->json('tables.sales.rows'), 'invoice_number'));
+        // بنود المبيعات: بند المالك فقط (parent-scoped).
+        $items = $res->json('tables.sale_items.rows');
+        $this->assertCount(1, $items);
+        $this->assertSame($mineItemUuid, $items[0]['uuid']);
+        $this->assertSame($mineUuid, $items[0]['sale_id_uuid']); // FK الأب متحوّل لـ uuid
+        $this->assertSame($drug, $items[0]['drug_id_uuid']);
+        $this->assertArrayNotHasKey('sale_id', $items[0]);
+    }
+
+    /** عند التطبيق على الفرع: بند البيع يربط بأبيه المحلي عبر sale_id_uuid → sales.id المحلي. */
+    public function test_pulled_sale_item_resolves_to_local_parent_on_apply(): void
+    {
+        $owner = $this->makeOwner();
+        $drug = $this->makeDrug();
+        $saleUuid = (string) Str::ulid();
+        $itemUuid = (string) Str::ulid();
+        $now = now()->toDateTimeString();
+
+        $repo = app(\App\Services\Sync\SyncRepository::class);
+        // الأب أولاً (زي ترتيب pull).
+        $repo->applyBatch('sales', [[
+            'uuid' => $saleUuid, 'user_id' => $owner, 'invoice_number' => 'INV-APPLY',
+            'total' => 100, 'paid' => 100, 'created_at' => $now, 'updated_at' => $now,
+        ]], true);
+        $repo->applyBatch('sale_items', [[
+            'uuid' => $itemUuid, 'sale_id_uuid' => $saleUuid, 'drug_id_uuid' => $drug,
+            'quantity' => 3, 'price' => 10, 'subtotal' => 30, 'created_at' => $now, 'updated_at' => $now,
+        ]], true);
+
+        $localSaleId = DB::table('sales')->where('uuid', $saleUuid)->value('id');
+        $item = DB::table('sale_items')->where('uuid', $itemUuid)->first();
+        $this->assertNotNull($item);
+        $this->assertSame((int) $localSaleId, (int) $item->sale_id); // ربط بالأب المحلي الصحيح
+        $this->assertSame((int) DB::table('drugs')->where('uuid', $drug)->value('id'), (int) $item->drug_id);
+        // مُعلَّم كمتزامن حتى لا يُعاد رفعه (منع echo).
+        $this->assertSame($item->updated_at, $item->synced_at);
+    }
 }
