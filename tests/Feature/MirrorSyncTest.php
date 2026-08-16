@@ -189,4 +189,30 @@ class MirrorSyncTest extends TestCase
         // مُعلَّم كمتزامن حتى لا يُعاد رفعه (منع echo).
         $this->assertSame($item->updated_at, $item->synced_at);
     }
+
+    /** المخزون يُسحب لهذا الفرع فقط (branch_id=الفرع)، لا مخزون فروع المالك الأخرى. */
+    public function test_inventory_pull_is_scoped_to_the_requesting_branch_only(): void
+    {
+        $owner = $this->makeOwner();
+        $this->makeBranch('br_A', 'A', $owner);
+        $this->makeBranch('br_B', 'B', $owner); // نفس المالك، فرع آخر
+        $drug = $this->makeDrug();
+        $drugId = DB::table('drugs')->where('uuid', $drug)->value('id');
+        $now = now()->toDateTimeString();
+
+        DB::table('user_drug_inventory')->insert([
+            'uuid' => (string) Str::ulid(), 'user_id' => $owner, 'branch_id' => 'br_A',
+            'drug_id' => $drugId, 'quantity' => 10, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('user_drug_inventory')->insert([
+            'uuid' => (string) Str::ulid(), 'user_id' => $owner, 'branch_id' => 'br_B',
+            'drug_id' => $drugId, 'quantity' => 77, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+
+        $rows = $this->pull('br_A')->assertOk()->json('tables.user_drug_inventory.rows');
+        $this->assertCount(1, $rows);                      // مخزون A فقط
+        $this->assertSame('br_A', $rows[0]['branch_id']);
+        $this->assertSame(10.0, (float) $rows[0]['quantity']);
+        $this->assertSame($drug, $rows[0]['drug_id_uuid']); // FK متحوّل
+    }
 }

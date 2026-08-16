@@ -71,6 +71,9 @@ class SyncPullQuery
             }),
             'owner_other_branches' => $query->where('user_id', $ownerId ?? -1)
                 ->where('snapshot_branch_id', '!=', (string) $branchId),
+            // مخزون الفرع الطالب نفسه فقط (يستعيده فرع مُعاد تثبيته، ولا يسحب مخزون غيره).
+            'own_branch' => $query->where('user_id', $ownerId ?? -1)
+                ->where('branch_id', (string) $branchId),
             default => null,
         };
     }

@@ -253,6 +253,15 @@ return [
         'pending_order_items',
         'insurance_claims',
         'insurance_claim_items',
+
+        /*
+        | (B3) مخزون الفرع نفسه. حسّاس: كل صف مخزون له branch_id للفرع المالك للمخزون،
+        | فنسحبه مقيّداً بـ branch_id = هذا الفرع فقط (استراتيجية own_branch في pull_scoped)
+        | حتى لا يسحب الفرع مخزون فروع المالك الأخرى ويفسد رصيده. Push-قبل-Pull في
+        | SyncRunner يضمن أن السيرفر يحمل آخر رصيد محلي قبل السحب (idempotent). التعارض
+        | عبر الأجهزة = LWW مقبول (offline بلا نت، الموقع بالنت — نادراً متزامنين).
+        */
+        'user_drug_inventory',
     ],
 
     /*
@@ -361,6 +370,8 @@ return [
         'stock_transfers'            => 'branch_party',
         'stock_transfer_items'       => 'via_parent',
         'branch_inventory_snapshots' => 'owner_other_branches',
+        // مخزون الفرع نفسه: user_id=المالك AND branch_id=الفرع الطالب (لا مخزون الفروع الأخرى).
+        'user_drug_inventory'        => 'own_branch',
     ],
 
 ];
