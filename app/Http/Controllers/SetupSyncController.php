@@ -65,4 +65,39 @@ class SetupSyncController extends Controller
             ], 422);
         }
     }
+
+    /**
+     * يؤكّد اكتمال أول مزامنة سيرفر-سايد: كل الجداول القابلة للسحب حالتها completed،
+     * وحساب المالك موجود محلياً. عندها فقط يُضبط initial_setup_completed_at فيُسمح بالدخول
+     * (البوابة EnsureBranchRegistered تمنع الدخول قبل ذلك).
+     */
+    public function complete(SyncPullService $service): JsonResponse
+    {
+        if (! Branch::isRegistered()) {
+            return response()->json(['success' => false, 'message' => 'الفرع غير مسجّل.'], 422);
+        }
+
+        $tables = $service->pullableTables();
+
+        if (! \Illuminate\Support\Facades\Schema::hasTable('sync_table_progress')
+            || ! \Illuminate\Support\Facades\DB::table('users')->exists()) {
+            return response()->json(['success' => false, 'message' => 'لم يكتمل التنزيل بعد.'], 409);
+        }
+
+        $completed = \Illuminate\Support\Facades\DB::table('sync_table_progress')
+            ->where('direction', 'pull')
+            ->whereIn('table_name', $tables)
+            ->where('status', 'completed')
+            ->count();
+
+        if ($completed < count($tables)) {
+            return response()->json(['success' => false, 'message' => 'لم يكتمل تنزيل كل الجداول بعد.'], 409);
+        }
+
+        if (! Settings::has('initial_setup_completed_at')) {
+            Settings::set('initial_setup_completed_at', now()->toDateTimeString());
+        }
+
+        return response()->json(['success' => true]);
+    }
 }

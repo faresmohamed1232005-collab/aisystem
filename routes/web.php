@@ -41,6 +41,10 @@ Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 Route::post('/setup', [SetupController::class, 'store'])->name('setup.store');
 Route::get('/setup/sync', [SetupSyncController::class, 'show'])->name('setup.sync.show');
 Route::post('/setup/sync/step', [SetupSyncController::class, 'step'])->name('setup.sync.step');
+// يؤكّد اكتمال أول مزامنة (كل الجداول completed) ويضبط علَم الدخول.
+Route::post('/setup/sync/complete', [SetupSyncController::class, 'complete'])->name('setup.sync.complete');
+// مخرج إعادة ضبط محلي (offline، بدون سيرفر ولا دخول) لفكّ القفل عند إعداد أول خاطئ.
+Route::post('/setup/reset-connection', [SetupController::class, 'resetConnection'])->name('setup.reset-connection');
 
 // ===== مركز التشخيص — للمستخدم المسجّل، أو ضيف تطبيق سطح المكتب فقط =====
 Route::middleware('diagnostics.access')->group(function () {

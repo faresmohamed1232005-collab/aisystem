@@ -215,6 +215,52 @@ class RecoveryService
         return $backup;
     }
 
+    /**
+     * إعادة ضبط الاتصال محلياً — بدون سيرفر وبدون تسجيل دخول. مخرج فكّ القفل عندما يكون
+     * الإعداد الأول خاطئاً (رابط سيرفر غلط) فلا reconfigure/factory-reset (يحتاجان السيرفر)
+     * ولا disconnect (يحتاج دخولاً) يعملان. يمسح إعدادات الاتصال فقط — **بيانات العمل تبقى**
+     * — فيعود المستخدم لشاشة الإعداد ليُدخل بيانات صحيحة. يُحرَس بعبارة تأكيد في الـ controller.
+     */
+    public function resetConnectionLocally(): void
+    {
+        if (! \App\Support\Runtime::isDesktop() || DB::connection()->getDriverName() !== 'sqlite') {
+            throw new RuntimeException('إعادة الضبط المحلية متاحة داخل تطبيق Desktop فقط.');
+        }
+
+        // نسخة احتياطية قبل المسح إن أمكن — لكن لا نفشل لو تعذّرت (الهدف فكّ القفل).
+        try {
+            $this->backup('reset_connection_local');
+        } catch (\Throwable $e) {
+            // تجاهل.
+        }
+
+        DB::transaction(function (): void {
+            foreach ([
+                'branch.id', 'branch.code', 'branch.name', 'branch.owner_uuid',
+                'sync.server_url', 'sync.token', 'sync.enabled', 'registered_at',
+                'initial_sync_completed_at', 'initial_setup_completed_at',
+                'reconfigure.guard', 'reconfigure.prior_branch_id', 'reconfigure.prior_owner_uuid', 'reconfigure.backup',
+            ] as $key) {
+                Settings::forget($key);
+            }
+
+            if (Schema::hasTable('sync_state')) {
+                DB::table('sync_state')->delete();
+            }
+            if (Schema::hasTable('sync_table_progress')) {
+                DB::table('sync_table_progress')->where('direction', 'pull')->where('sync_mode', 'initial')->delete();
+            }
+        });
+
+        config([
+            'sync.branch_id' => null,
+            'sync.branch_code' => null,
+            'sync.server_url' => null,
+            'sync.token' => null,
+            'sync.enabled' => false,
+        ]);
+    }
+
     public function hasOperationalRows(): bool
     {
         $tables = array_values(array_unique(array_merge(

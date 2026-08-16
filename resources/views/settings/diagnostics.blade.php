@@ -89,34 +89,45 @@
 
     @if (auth()->check() && \App\Support\Actor::isOwner())
     <section class="diag-card p-5">
-        <h3 class="font-black text-slate-900">إجراءات المالك الآمنة</h3>
-        <p class="mt-1 text-sm text-slate-500">هذه الأزرار للمالك فقط. إعادة محاولة جدول أو فصل الاتصال تتطلب كلمة المرور.</p>
-        <div class="mt-4 grid gap-4 lg:grid-cols-2">
-            <form method="POST" action="{{ route('diagnostics.actions.sync') }}" class="rounded-xl border p-4">@csrf
-                <strong>مزامنة يدوية</strong><p class="my-2 text-xs text-slate-500">تشغيل دورة الرفع ثم السحب المعتادة الآن.</p>
-                <button class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white">تشغيل المزامنة</button>
+        <h3 class="font-black text-slate-900">إجراءات المالك</h3>
+        <p class="mt-1 text-sm text-slate-500">«مزامنة الآن» هي الزر اليومي المعتاد. باقي الأدوات للطوارئ فقط، وبعضها يتطلب كلمة مرور المالك.</p>
+
+        {{-- الزر اليومي: مزامنة عادية (رفع ثم سحب) --}}
+        <div class="mt-4">
+            <form method="POST" action="{{ route('diagnostics.actions.sync') }}" class="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-4">@csrf
+                <strong class="text-indigo-900"><i class="fas fa-arrows-rotate ml-1"></i> مزامنة الآن</strong>
+                <p class="my-2 text-xs leading-6 text-slate-600">يرفع تغييراتك إلى السيرفر ثم ينزّل أي تحديثات جديدة منه. هذا هو الزر الذي تستخدمه عادةً (مثلاً بعد رجوع الإنترنت).</p>
+                <button class="w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">مزامنة الآن</button>
             </form>
-            <form method="POST" action="{{ route('diagnostics.actions.backup') }}" class="rounded-xl border p-4">@csrf
-                <strong>نسخة احتياطية محلية</strong><p class="my-2 text-xs text-slate-500">لقطة WAL-safe مع quick_check وبصمة SHA256.</p>
-                <button class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">إنشاء نسخة موثوقة</button>
-            </form>
-            <form method="POST" action="{{ route('diagnostics.actions.retry') }}" class="rounded-xl border p-4">@csrf
-                <strong>إعادة محاولة جدول سحب واحد</strong>
-                <p class="my-2 text-xs text-slate-500">يمسح مؤشر السحب والتقدم الأولي لهذا الجدول فقط، ولا يغيّر synced_at أو الصفوف المعلّقة.</p>
-                <select name="table" required class="w-full rounded-lg border p-2 text-sm">@foreach($pullableTables as $table)<option value="{{ $table }}">{{ $table }}</option>@endforeach</select>
-                <input name="password" type="password" required placeholder="كلمة مرور المالك" class="mt-2 w-full rounded-lg border p-2 text-sm">
-                <button onclick="return confirm('سيتم إنشاء نسخة احتياطية ثم إعادة مؤشر هذا الجدول فقط. متابعة؟')" class="mt-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white">نسخة ثم إعادة المحاولة</button>
-            </form>
-            @if (\App\Support\Runtime::isDesktop() && config('database.default') === 'sqlite')
-            <form method="POST" action="{{ route('diagnostics.actions.disconnect') }}" class="rounded-xl border border-red-200 p-4">@csrf
-                <strong class="text-red-800">فصل الاتصال وإعادة الإعداد</strong>
-                <p class="my-2 text-xs text-slate-500">يحفظ بيانات العمل، ويمسح مفاتيح الاتصال والتقدم الأولي فقط. لا يمسح قاعدة البيانات.</p>
-                <input name="password" type="password" required placeholder="كلمة مرور المالك" class="w-full rounded-lg border p-2 text-sm">
-                <input name="confirmation" required placeholder="اكتب: {{ \App\Services\Diagnostics\RecoveryService::DISCONNECT_PHRASE }}" class="mt-2 w-full rounded-lg border p-2 text-sm">
-                <button onclick="return confirm('سيتم فصل الاتصال فقط مع الاحتفاظ ببيانات العمل. متابعة؟')" class="mt-2 rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white">فصل آمن وإعادة الإعداد</button>
-            </form>
-            @endif
         </div>
+
+        {{-- أدوات متقدمة: النسخ الاحتياطي والإصلاح وفصل الاتصال — مطوية لتقليل الالتباس --}}
+        <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <summary class="cursor-pointer select-none text-sm font-bold text-slate-700">أدوات متقدمة (نسخ احتياطي وإصلاح) — للطوارئ فقط</summary>
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                <form method="POST" action="{{ route('diagnostics.actions.backup') }}" class="rounded-xl border bg-white p-4">@csrf
+                    <strong>نسخة احتياطية</strong>
+                    <p class="my-2 text-xs leading-6 text-slate-500">يحفظ لقطة آمنة من قاعدة بياناتك على الجهاز. لا يُزامن ولا يحذف أي شيء — مجرّد نسخة للأمان.</p>
+                    <button class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">حفظ نسخة احتياطية</button>
+                </form>
+                <form method="POST" action="{{ route('diagnostics.actions.retry') }}" class="rounded-xl border bg-white p-4">@csrf
+                    <strong>إصلاح تنزيل جدول</strong>
+                    <p class="my-2 text-xs leading-6 text-slate-500">للطوارئ: لو جدول معيّن عالق في التنزيل، هذا يعمل نسخة احتياطية ثم يعيد تنزيله من البداية. لا يمسّ بياناتك غير المرفوعة.</p>
+                    <select name="table" required class="w-full rounded-lg border p-2 text-sm">@foreach($pullableTables as $table)<option value="{{ $table }}">{{ $table }}</option>@endforeach</select>
+                    <input name="password" type="password" required placeholder="كلمة مرور المالك" class="mt-2 w-full rounded-lg border p-2 text-sm">
+                    <button onclick="return confirm('سيتم إنشاء نسخة احتياطية ثم إعادة تنزيل هذا الجدول من البداية. متابعة؟')" class="mt-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white">نسخة ثم إعادة التنزيل</button>
+                </form>
+                @if (\App\Support\Runtime::isDesktop() && config('database.default') === 'sqlite')
+                <form method="POST" action="{{ route('diagnostics.actions.disconnect') }}" class="rounded-xl border border-red-200 bg-white p-4">@csrf
+                    <strong class="text-red-800">فصل الاتصال وإعادة الإعداد</strong>
+                    <p class="my-2 text-xs leading-6 text-slate-500">يحفظ بيانات العمل، ويمسح إعدادات الاتصال فقط ثم يرجّعك لشاشة الإعداد. لا يمسح قاعدة البيانات.</p>
+                    <input name="password" type="password" required placeholder="كلمة مرور المالك" class="w-full rounded-lg border p-2 text-sm">
+                    <input name="confirmation" required placeholder="اكتب: {{ \App\Services\Diagnostics\RecoveryService::DISCONNECT_PHRASE }}" class="mt-2 w-full rounded-lg border p-2 text-sm">
+                    <button onclick="return confirm('سيتم فصل الاتصال فقط مع الاحتفاظ ببيانات العمل. متابعة؟')" class="mt-2 rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white">فصل آمن وإعادة الإعداد</button>
+                </form>
+                @endif
+            </div>
+        </details>
     </section>
     @endif
 

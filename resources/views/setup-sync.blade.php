@@ -49,6 +49,9 @@
         @if (session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
+        @if (session('error'))
+            <div class="alert alert-error">{{ session('error') }}</div>
+        @endif
 
         <div id="error" class="alert alert-error" @if(!$manifestError) hidden @endif>{{ $manifestError }}</div>
         <div class="progress-track"><div id="progress" class="progress-bar"></div></div>
@@ -59,6 +62,15 @@
         <button id="start" type="button">بدء تنزيل البيانات</button>
         <a id="continue" class="continue" href="{{ url('/') }}">فتح التطبيق</a>
         <a class="diagnostics-link" href="{{ route('diagnostics.page') }}">فتح مركز التشخيص والإعدادات</a>
+
+        {{-- مخرج فكّ القفل: لو الإعداد الأول غلط (رابط/توكن) والتنزيل بيفشل باستمرار، يمسح
+             إعدادات الاتصال محلياً (بدون سيرفر ولا دخول) ويرجّع لشاشة الإعداد. البيانات تبقى. --}}
+        <form method="POST" action="{{ route('setup.reset-connection') }}"
+              onsubmit="return confirm('سيتم مسح إعدادات الاتصال (رابط السيرفر والمفتاح) والعودة لشاشة الإعداد. بياناتك المحلية تبقى وتُحفظ نسخة احتياطية. متابعة؟');">
+            @csrf
+            <input type="hidden" name="confirmation" value="{{ \App\Services\Diagnostics\RecoveryService::DISCONNECT_PHRASE }}">
+            <button type="submit" style="background:#b91c1c; margin-top:10px;">الإعداد غير صحيح؟ إعادة ضبط الاتصال محلياً</button>
+        </form>
     </div>
 
     <script>
@@ -106,6 +118,32 @@
             return terminal;
         };
 
+        // يؤكّد الاكتمال سيرفر-سايد ويضبط علَم الدخول قبل إظهار «فتح التطبيق».
+        // البوابة تمنع الدخول قبل ضبط هذا العلَم، فلا يدخل المستخدم بقاعدة نصف محمّلة.
+        const finishSetup = async () => {
+            try {
+                const res = await fetch('{{ route('setup.sync.complete') }}', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'تعذّر تأكيد اكتمال التنزيل.');
+                }
+                status.textContent = 'اكتملت المزامنة الأولى بنجاح';
+                error.hidden = true;
+                start.style.display = 'none';
+                continueLink.style.display = 'block';
+            } catch (e) {
+                error.textContent = e.message + ' اضغط «إعادة المحاولة» لإكمال ما تبقّى.';
+                error.hidden = false;
+                status.textContent = 'لم يكتمل التنزيل بعد';
+                start.textContent = 'إعادة المحاولة';
+                start.disabled = false;
+                start.style.display = 'block';
+            }
+        };
+
         const syncNext = async () => {
             const table = nextTable();
             if (!table) {
@@ -113,9 +151,7 @@
                 if (!complete || !ownerExists) {
                     throw new Error(ownerExists ? 'بعض الجداول لم تصل إلى حالة مكتملة.' : 'اكتملت الجداول لكن حساب مالك الصيدلية غير موجود محلياً.');
                 }
-                status.textContent = 'اكتملت المزامنة الأولى بنجاح';
-                start.style.display = 'none';
-                continueLink.style.display = 'block';
+                await finishSetup();
                 return;
             }
             status.textContent = 'جارٍ تنزيل: ' + (labels[table] || table);
@@ -160,9 +196,7 @@
 
         const initiallyTerminal = render();
         if (initiallyTerminal && ownerExists) {
-            status.textContent = 'اكتملت المزامنة الأولى بنجاح';
-            start.style.display = 'none';
-            continueLink.style.display = 'block';
+            finishSetup();
         } else {
             setTimeout(() => start.click(), 150);
         }

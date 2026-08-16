@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Services\Diagnostics\RecoveryService;
 use App\Support\Branch;
+use App\Support\Runtime;
 use App\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -123,5 +125,30 @@ class SetupController extends Controller
 
         return redirect()->route('setup.sync.show')
             ->with('success', 'تم تسجيل الفرع «' . $code . '» بنجاح. ابدأ تنزيل البيانات.');
+    }
+
+    /**
+     * إعادة ضبط الاتصال محلياً (offline) — مخرج فكّ القفل عند إعداد أول خاطئ. لا يتصل
+     * بالسيرفر ولا يتطلب تسجيل دخول، ويحتفظ ببيانات العمل المحلية. يُحرَس بعبارة تأكيد.
+     */
+    public function resetConnection(Request $request, RecoveryService $recovery)
+    {
+        if (! Runtime::isDesktop() || DB::connection()->getDriverName() !== 'sqlite') {
+            abort(404);
+        }
+
+        $request->validate([
+            'confirmation' => ['required', 'string', 'in:' . RecoveryService::DISCONNECT_PHRASE],
+        ]);
+
+        try {
+            $recovery->resetConnectionLocally();
+        } catch (\Throwable $e) {
+            Log::warning('Local connection reset failed', ['error' => $e->getMessage()]);
+            return back()->with('error', 'تعذّرت إعادة ضبط الاتصال. أعد المحاولة.');
+        }
+
+        return redirect()->route('setup.show')
+            ->with('success', 'تمت إعادة ضبط الاتصال محلياً مع الاحتفاظ ببياناتك. أدخل بيانات الإعداد الصحيحة.');
     }
 }
