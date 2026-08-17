@@ -320,7 +320,7 @@ class SaleReturnController extends Controller
                         } else {
                             UserDrugInventory::create([
                                 'user_id'   => $userId,
-                                'branch_id' => \App\Support\Branch::id(),
+                                'branch_id' => \App\Support\ActiveBranch::id(),
                                 'drug_id'   => $saleItem->drug_id,
                                 'quantity'  => $returnedBoxes,
                             ]);

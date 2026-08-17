@@ -40,6 +40,27 @@ class BranchController extends Controller
     }
 
     /**
+     * يختار المالك «الفرع النشط» الذي يعمل عليه على الموقع؛ يُخزَّن في الجلسة فيُوسَم به
+     * ما يُنشئه (شراء/مخزون) ويُقيَّد به العرض. تمرير فارغ = العودة للمركز (بدون فرع محدّد).
+     */
+    public function switch(Request $request)
+    {
+        $data = $request->validate(['branch_id' => 'nullable|string|max:32']);
+
+        if (! empty($data['branch_id'])) {
+            $branch = BranchModel::where('branch_id', $data['branch_id'])->first();
+            abort_if(! $branch || $branch->user_id !== Auth::id(), 403);
+            session([\App\Support\ActiveBranch::SESSION_KEY => $branch->branch_id]);
+            $msg = 'أنت الآن تعمل على فرع «' . ($branch->name ?: $branch->code) . '».';
+        } else {
+            session()->forget(\App\Support\ActiveBranch::SESSION_KEY);
+            $msg = 'رجعت للعرض المركزي (بدون فرع محدّد).';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
      * إنشاء فرع مركزياً على السيرفر (قبل تثبيت أي جهاز). يولّد branch_id ثابت ويربطه
      * بالمالك، فيمكن للمالك ضبط مخزونه وفواتيره ثم توصيل أجهزة الفرع بالكود لاحقاً.
      *

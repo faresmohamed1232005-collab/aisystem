@@ -2,6 +2,7 @@
 
 namespace App\Models\Concerns;
 
+use App\Support\ActiveBranch;
 use App\Support\Branch;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -30,9 +31,9 @@ trait Syncable
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::ulid();
             }
-            // وسم الفرع المُنشئ (origin) إن لم يُضبط
+            // وسم الفرع العامل (الموقع: الفرع المختار؛ الديسكتوب: الجهاز) إن لم يُضبط
             if (empty($model->branch_id)) {
-                $model->branch_id = Branch::id();
+                $model->branch_id = ActiveBranch::id();
             }
         });
     }

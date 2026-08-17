@@ -470,6 +470,31 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <h1 class="text-base font-bold text-gray-700 truncate">@yield('title', 'لوحة التحكم')</h1>
+
+                    {{-- مبدّل «الفرع النشط»: على الموقع فقط، لمن يدير الفروع، عند وجود فروع.
+                         يحدّد أي فرع تُنسب له البيانات المُنشأة (شراء/مخزون) وأي فرع يُعرض. --}}
+                    @if (! config('nativephp-internal.running'))
+                        @can('manage_branches')
+                            @php($__branches = \App\Support\ActiveBranch::ownerBranches())
+                            @if ($__branches->isNotEmpty())
+                                @php($__active = session(\App\Support\ActiveBranch::SESSION_KEY))
+                                <form method="POST" action="{{ route('branches.switch') }}" class="hidden sm:block">
+                                    @csrf
+                                    <div class="flex items-center gap-1.5 rounded-lg border px-2 h-9 {{ $__active ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200' }}"
+                                         title="الفرع الذي تعمل عليه — البيانات المُنشأة تُنسب له">
+                                        <i class="fas fa-code-branch text-xs {{ $__active ? 'text-indigo-600' : 'text-gray-400' }}"></i>
+                                        <select name="branch_id" onchange="this.form.submit()"
+                                                class="bg-transparent text-sm focus:outline-none max-w-[170px] cursor-pointer {{ $__active ? 'font-semibold text-indigo-700' : 'text-gray-600' }}">
+                                            <option value="">— المركز (بدون فرع) —</option>
+                                            @foreach ($__branches as $__b)
+                                                <option value="{{ $__b->branch_id }}" @selected($__active === $__b->branch_id)>{{ $__b->code }} — {{ $__b->name ?: 'بلا اسم' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </form>
+                            @endif
+                        @endcan
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-3">

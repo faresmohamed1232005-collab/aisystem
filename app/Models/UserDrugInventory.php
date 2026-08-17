@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Syncable;
+use App\Support\ActiveBranch;
 use App\Support\Branch;
 
 
@@ -21,7 +22,7 @@ class UserDrugInventory extends Model
      */
     public function scopeCurrentBranch($query)
     {
-        return $query->where($this->getTable() . '.branch_id', Branch::id());
+        return $query->where($this->getTable() . '.branch_id', ActiveBranch::id());
     }
 
     public function scopeSaleable($query)

@@ -50,7 +50,7 @@ class ProductsController extends Controller
                 DB::raw("MAX(COALESCE(piece_unit_name, 'حبة'))     as piece_unit_name"),
             )
             ->where('user_id', $userId)
-            ->where('branch_id', \App\Support\Branch::id())
+            ->where('branch_id', \App\Support\ActiveBranch::id())
             ->where('quantity', '>', 0)
             ->where(function ($query) {
                 $query->whereNull('expiry_date')
@@ -305,7 +305,7 @@ class ProductsController extends Controller
         UserDrugInventory::updateOrCreate(
             [
                 'user_id'     => Auth::id(),
-                'branch_id'   => \App\Support\Branch::id(),
+                'branch_id'   => \App\Support\ActiveBranch::id(),
                 'drug_id'     => $drug->id,
                 'expiry_date' => $request->expiry_date ?? null,
             ],
@@ -326,7 +326,7 @@ class ProductsController extends Controller
         UserDrugInventory::updateOrCreate(
             [
                 'user_id'     => Auth::id(),
-                'branch_id'   => \App\Support\Branch::id(),
+                'branch_id'   => \App\Support\ActiveBranch::id(),
                 'drug_id'     => $request->drug_id,
                 'expiry_date' => $request->expiry_date ?? null,
             ],

@@ -196,6 +196,8 @@ Route::middleware('auth')->group(function () {
     // ===== الفروع والتحويلات (Phase 2ب) =====
     // إدارة الفروع (صلاحية: manage_branches)
     Route::middleware('can:manage_branches')->group(function () {
+        // اختيار «الفرع النشط» الذي يعمل عليه المالك على الموقع (قبل الـ resource wildcard).
+        Route::post('branches/switch', [BranchController::class, 'switch'])->name('branches.switch');
         Route::resource('branches', BranchController::class)->only(['index', 'create', 'store', 'show', 'update']);
     });
 
