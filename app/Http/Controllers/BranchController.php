@@ -6,6 +6,8 @@ use App\Models\BranchModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * إدارة الفروع (Phase 2ب) — رؤية المالك المركزية.
@@ -30,6 +32,48 @@ class BranchController extends Controller
             ->withQueryString();
 
         return view('branches.index', compact('branches', 'q'));
+    }
+
+    public function create()
+    {
+        return view('branches.create');
+    }
+
+    /**
+     * إنشاء فرع مركزياً على السيرفر (قبل تثبيت أي جهاز). يولّد branch_id ثابت ويربطه
+     * بالمالك، فيمكن للمالك ضبط مخزونه وفواتيره ثم توصيل أجهزة الفرع بالكود لاحقاً.
+     *
+     * code فريد عالمياً (بادئة الفواتير + مُعرّف الفرع البشري) — نمنع تكراره لأي مالك.
+     * الإنشاء عبر Eloquent فيختم Syncable الـ uuid تلقائياً (شرط سحب الفرع للأجهزة).
+     */
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'code'        => ['required', 'string', 'max:16', Rule::unique('branches', 'code')],
+            'name'        => ['nullable', 'string', 'max:255'],
+            'type'        => ['required', 'in:pharmacy,warehouse,office'],
+            'governorate' => ['nullable', 'string', 'max:255'],
+            'address'     => ['nullable', 'string', 'max:500'],
+            'phone'       => ['nullable', 'string', 'max:30'],
+        ], [
+            'code.unique' => 'كود الفرع مستخدم بالفعل. اختر كوداً آخر.',
+        ]);
+
+        $branch = BranchModel::create([
+            'branch_id'     => 'br_' . Str::ulid(),
+            'code'          => strtoupper(trim($data['code'])),
+            'name'          => $data['name'] ?? null,
+            'type'          => $data['type'],
+            'governorate'   => $data['governorate'] ?? null,
+            'address'       => $data['address'] ?? null,
+            'phone'         => $data['phone'] ?? null,
+            'user_id'       => Auth::id(),
+            'status'        => 'active',
+            'registered_at' => now(),
+        ]);
+
+        return redirect()->route('branches.show', $branch)
+            ->with('success', 'تم إنشاء الفرع «' . ($branch->name ?: $branch->code) . '». اضبط مخزونه وفواتيره ثم وصّل أجهزته بالكود.');
     }
 
     public function show(BranchModel $branch)

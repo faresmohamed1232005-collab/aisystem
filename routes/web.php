@@ -196,7 +196,7 @@ Route::middleware('auth')->group(function () {
     // ===== الفروع والتحويلات (Phase 2ب) =====
     // إدارة الفروع (صلاحية: manage_branches)
     Route::middleware('can:manage_branches')->group(function () {
-        Route::resource('branches', BranchController::class)->only(['index', 'show', 'update']);
+        Route::resource('branches', BranchController::class)->only(['index', 'create', 'store', 'show', 'update']);
     });
 
     // تحويلات المخزون — AJAX قبل الـ wildcard دايماً

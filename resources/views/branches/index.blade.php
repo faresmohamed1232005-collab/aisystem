@@ -40,10 +40,13 @@
             <h2 class="text-xl font-bold text-gray-800">الفروع</h2>
             <span class="bg-indigo-100 text-indigo-700 text-sm px-3 py-1 rounded-full font-semibold">{{ $branches->total() }} فرع</span>
         </div>
+        <a href="{{ route('branches.create') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-sm">
+            <i class="fas fa-plus"></i> فرع جديد
+        </a>
     </div>
 
     <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700">
-        <i class="fas fa-circle-info"></i> الفروع تُنشأ تلقائياً عند تسجيل كل جهاز فرع من «شاشة إعداد أول تشغيل». هنا تحرّر بياناتها وصلاحياتها.
+        <i class="fas fa-circle-info"></i> عرّف فروعك هنا واضبط مخزون وفواتير كل فرع، ثم وصّل أجهزة الفرع بكوده من «شاشة الإعداد» على الجهاز. (الفرع يُنشأ أيضاً تلقائياً عند تسجيل أول جهاز بكوده.)
     </div>
 
     @if($errors->any())
