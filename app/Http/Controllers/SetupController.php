@@ -39,6 +39,7 @@ class SetupController extends Controller
         $data = $request->validate([
             'code'           => 'required|string|max:16',
             'name'           => 'nullable|string|max:255',
+            'device_no'      => 'nullable|integer|min:1',
             'server_url'     => 'required|url',
             'token'          => 'required|string|max:80',
             'owner_login'    => 'required|string|max:255',
@@ -56,6 +57,7 @@ class SetupController extends Controller
                 ->post($serverUrl . '/api/sync/register', [
                     'code'           => $code,
                     'name'           => $data['name'] ?? null,
+                    'device_no'      => $data['device_no'] ?? null,
                     'owner_login'    => $data['owner_login'],
                     'owner_password' => $data['owner_password'],
                 ]);
@@ -103,6 +105,7 @@ class SetupController extends Controller
         Settings::set('branch.id', $branchId);
         Settings::set('branch.code', $code);
         Settings::set('branch.name', $data['name'] ?? null);
+        Settings::set('branch.device_no', $data['device_no'] ?? null);
         Settings::set('branch.owner_uuid', $ownerUuid);
         Settings::set('sync.server_url', $serverUrl);
         Settings::set('sync.token', $data['token']);

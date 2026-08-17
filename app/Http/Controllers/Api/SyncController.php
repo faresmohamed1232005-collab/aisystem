@@ -150,6 +150,7 @@ class SyncController extends Controller
         $data = $request->validate([
             'code'           => 'required|string|max:16',
             'name'           => 'sometimes|nullable|string|max:255',
+            'device_no'      => 'sometimes|nullable|integer|min:1',
             'owner_login'    => 'required|string|max:255',
             'owner_password' => 'required|string',
         ]);
@@ -177,6 +178,8 @@ class SyncController extends Controller
         }
 
         if ($existing) {
+            // فرع موجود (عُرِّف على السيرفر أو سجّله جهاز سابق) — نربط الجهاز به بلا إنشاء.
+            // أجهزة متعددة بنفس الكود تشترك في نفس branch_id (بيانات الفرع مشتركة بينها).
             DB::table('branches')->where('id', $existing->id)->update([
                 'name'         => $data['name'] ?? $existing->name,
                 'user_id'      => $owner->id,
@@ -184,7 +187,8 @@ class SyncController extends Controller
                 'updated_at'   => $now,
             ]);
             $branchId = $existing->branch_id;
-        } else {
+        } elseif (! config('sync.register_requires_existing_branch', true)) {
+            // نشر قديم/ذاتي: أنشئ الفرع تلقائياً عند أول تسجيل (السلوك السابق).
             $branchId = 'br_' . Str::ulid();
             DB::table('branches')->insert([
                 'branch_id'     => $branchId,
@@ -196,6 +200,13 @@ class SyncController extends Controller
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]);
+        } else {
+            // النموذج المركزي: الفرع يُعرَّف على السيرفر أولاً (بمخزونه/فواتيره)، فلا ننشئه
+            // من الجهاز — نمنع تكوين فرع جديد أو تثبيت جهاز لفرع غير موجود.
+            return response()->json([
+                'success' => false,
+                'message' => "الفرع بالكود «{$code}» غير موجود على السيرفر. أنشئه أولاً من صفحة الفروع ثم أعد المحاولة.",
+            ], 404);
         }
 
         Log::info('Branch registered', ['code' => $code, 'branch_id' => $branchId, 'owner' => $owner->id, 'new' => ! $existing]);

@@ -40,8 +40,8 @@
 </head>
 <body>
     <div class="card">
-        <h1>إعداد الفرع</h1>
-        <p class="sub">هذه أول مرة يُشغّل فيها التطبيق على هذا الجهاز. أدخل بيانات الفرع مرة واحدة للربط بالسيرفر المركزي.</p>
+        <h1>ربط الجهاز بفرع</h1>
+        <p class="sub">وصّل هذا الجهاز بفرع مُعرَّف مسبقاً على السيرفر. أدخل <b>كود الفرع</b> (لازم يكون موجوداً على السيرفر) — والجهاز هيسحب بيانات الفرع تلقائياً. يمكن ربط أكتر من جهاز بنفس الفرع (بنفس الكود) ليشاركوا بياناته.</p>
 
         @if (session('error'))
             <div class="alert alert-error">{{ session('error') }}</div>
@@ -54,13 +54,18 @@
                     <label for="code">كود الفرع</label>
                     <input type="text" id="code" name="code" value="{{ old('code', $code) }}"
                            placeholder="A" maxlength="16" required autofocus>
-                    <div class="hint">حرف/رمز فريد لكل فرع (بادئة الفواتير).</div>
+                    <div class="hint">كود الفرع الموجود على السيرفر (بادئة الفواتير).</div>
                 </div>
                 <div>
-                    <label for="name">اسم الفرع (اختياري)</label>
-                    <input type="text" id="name" name="name" value="{{ old('name') }}" placeholder="فرع المعادي">
+                    <label for="device_no">رقم الجهاز (اختياري)</label>
+                    <input type="number" id="device_no" name="device_no" value="{{ old('device_no') }}"
+                           placeholder="1" min="1">
+                    <div class="hint">لو الفرع عليه أكتر من جهاز.</div>
                 </div>
             </div>
+
+            <label for="name">اسم الفرع (اختياري)</label>
+            <input type="text" id="name" name="name" value="{{ old('name') }}" placeholder="فرع المعادي">
 
             <label for="server_url">رابط السيرفر المركزي</label>
             <input type="url" id="server_url" name="server_url" value="{{ old('server_url', $serverUrl) }}"

@@ -38,6 +38,13 @@ return [
     // حجم الدفعة عند الرفع (عدد الصفوف لكل جدول في الطلب الواحد).
     'batch_size' => (int) env('SYNC_BATCH_SIZE', 200),
 
+    // النموذج المركزي: التسجيل يتطلّب أن يكون الفرع مُعرَّفاً مسبقاً على السيرفر (بكوده).
+    // true = يرفض تسجيل جهاز بكود فرع غير موجود (يُعرَّف الفرع أولاً من صفحة الفروع).
+    // false = يُنشئ الفرع تلقائياً عند أول تسجيل (سلوك قديم — للنشر الذاتي/فرع واحد).
+    'register_requires_existing_branch' => filter_var(
+        env('SYNC_REGISTER_REQUIRES_EXISTING_BRANCH', true), FILTER_VALIDATE_BOOL
+    ),
+
     // رابط تحميل تطبيق سطح المكتب (صفحة آخر إصدار على GitHub Releases).
     // يظهر زر التحميل في نسخة الويب فقط عند ضبط هذا الرابط (وليس داخل تطبيق الديسكتوب).
     'desktop_download_url' => env('DESKTOP_DOWNLOAD_URL'),

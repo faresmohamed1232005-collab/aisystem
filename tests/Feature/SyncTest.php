@@ -30,6 +30,9 @@ class SyncTest extends TestCase
         config([
             'sync.token'      => $this->token,
             'sync.server_url' => 'https://server.test',
+            // هذه المجموعة تختبر مسار الإنشاء التلقائي عند التسجيل (النشر الذاتي/فرع واحد).
+            // المسار المركزي «verify-exists» مغطّى في RegisterVerifyExistingTest.
+            'sync.register_requires_existing_branch' => false,
         ]);
     }
 
