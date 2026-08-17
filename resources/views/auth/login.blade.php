@@ -509,6 +509,19 @@
             <div class="card-foot">
                 <a href="{{ route('diagnostics.page') }}"><i class="fas fa-stethoscope"></i> مركز التشخيص والإعدادات</a>
             </div>
+            {{-- مخرج فكّ القفل: لو الإعداد الأول غلط (رابط/توكن) وتعذّر الدخول، يمسح إعدادات
+                 الاتصال محلياً (بدون سيرفر ولا دخول) ويرجّع لشاشة الإعداد كأنك تُثبّت أول مرة.
+                 بيانات العمل المحلية تبقى وتُحفظ نسخة احتياطية. يعالج بقاء البيانات بعد إلغاء التثبيت. --}}
+            <form method="POST" action="{{ route('setup.reset-connection') }}"
+                  style="margin-top:0.85rem; text-align:center;"
+                  onsubmit="return confirm('سيتم مسح إعدادات الاتصال (رابط السيرفر والمفتاح) والعودة لشاشة الإعداد كأنك تُثبّت أول مرة. بياناتك المحلية تبقى وتُحفظ نسخة احتياطية. متابعة؟');">
+                @csrf
+                <input type="hidden" name="confirmation" value="{{ \App\Services\Diagnostics\RecoveryService::DISCONNECT_PHRASE }}">
+                <button type="submit"
+                        style="background:none;border:none;cursor:pointer;color:#f87171;font-size:0.76rem;font-weight:700;font-family:'Cairo',sans-serif;text-decoration:underline;">
+                    <i class="fas fa-rotate-left"></i> الإعداد غير صحيح؟ إعادة تهيئة الاتصال (كأول تثبيت)
+                </button>
+            </form>
         @endif
     </div>
 
