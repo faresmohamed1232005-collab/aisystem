@@ -69,6 +69,12 @@ jobs:
           '@ | Set-Content -Path .env.desktop-build -Encoding utf8
 
       - name: Install PHP dependencies
+        env:
+          # وثّق composer بـ GITHUB_TOKEN حتى تُحمَّل حزم dist عبر طلبات موثّقة (حد 5000/ساعة
+          # بدل 60 للمجهول) — يزيل أخطاء 429 (Too Many Requests) من codeload.github.com.
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ secrets.GITHUB_TOKEN }}"}}'
+          # قلّل التنزيلات المتوازية لتفادي سباق الملفات المؤقتة (Permission denied) وحدود المعدّل.
+          COMPOSER_MAX_PARALLEL_HTTP: '6'
         run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Generate temporary application key
