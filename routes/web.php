@@ -133,6 +133,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/pending-orders/{pendingOrder}/confirm', [PendingOrderController::class, 'confirm'])->name('pending.confirm');
     Route::delete('/pending-orders/{pendingOrder}', [PendingOrderController::class, 'destroy'])->name('pending.destroy');
     Route::get('/pending-orders/count', [PendingOrderController::class, 'count'])->name('pending.count');
+    // ===== نوافذ الديسكتوب (فتح شاشة في نافذة مستقلة) =====
+    Route::post('/desktop/window/open', [\App\Http\Controllers\DesktopWindowController::class, 'open'])
+        ->middleware('throttle:60,1')->name('desktop.window.open');
     // ===== Notifications =====
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.count');

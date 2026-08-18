@@ -283,6 +283,11 @@
                     class="nav-item {{ request()->routeIs('sales.create') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
                     <i class="fas fa-cash-register w-5 text-center"></i> البيع المباشر
+                    @if(\App\Support\Runtime::isDesktop())
+                    <button type="button" title="افتح في نافذة جديدة"
+                        onclick="event.preventDefault(); event.stopPropagation(); openInNewWindow('sales.create')"
+                        class="mr-auto text-gray-400 hover:text-indigo-300 px-1"><i class="fas fa-up-right-from-square text-xs"></i></button>
+                    @endif
                 </a>
                 <a href="{{ route('pending.index') }}"
                     class="nav-item {{ request()->routeIs('pending.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
@@ -309,6 +314,11 @@
                     class="nav-item {{ request()->routeIs('products.*') ? 'active' : '' }} flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm"
                     onclick="closeSidebar()">
                     <i class="fas fa-boxes w-5 text-center"></i> المخزن
+                    @if(\App\Support\Runtime::isDesktop())
+                    <button type="button" title="افتح في نافذة جديدة"
+                        onclick="event.preventDefault(); event.stopPropagation(); openInNewWindow('products.index')"
+                        class="mr-auto text-gray-400 hover:text-indigo-300 px-1"><i class="fas fa-up-right-from-square text-xs"></i></button>
+                    @endif
                 </a>
 
                 <div class="nav-section">المبيعات</div>
@@ -548,6 +558,16 @@
                             class="absolute -top-1 -left-1 bg-red-500 text-white text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 hidden">0</span>
                     </a>
 
+                    {{-- زر «نافذة جديدة»: على الديسكتوب فقط، يفتح الشاشة الحالية في نافذة مستقلة
+                         (لو كانت من الشاشات المسموح فتحها) دون مغادرة النافذة الحالية. --}}
+                    @if (\App\Support\Runtime::isDesktop() && \App\Support\DesktopWindows::isPoppable(request()->route()?->getName()))
+                        <button type="button" onclick="openInNewWindow(@json(request()->route()->getName()))"
+                            title="افتح هذه الشاشة في نافذة جديدة"
+                            class="hidden sm:flex items-center gap-2 bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-600 px-3 h-9 rounded-lg text-sm font-semibold transition">
+                            <i class="fas fa-window-restore"></i><span class="hidden md:inline">نافذة جديدة</span>
+                        </button>
+                    @endif
+
                     <div class="header-robot-wrap mini-robot" title="{{ $displayName }}">
                         <svg width="32" height="40" viewBox="-12 -5 184 268" fill="none">
                             <defs>
@@ -697,6 +717,24 @@
         setInterval(loadNotifCount, 30000);
         loadPendingCount();
         setInterval(loadPendingCount, 30000);
+
+        @if (\App\Support\Runtime::isDesktop())
+        // ===== فتح شاشة في نافذة مستقلة (ديسكتوب) — لا يغادر النافذة الحالية =====
+        async function openInNewWindow(target) {
+            try {
+                await fetch('{{ route('desktop.window.open') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ target }),
+                });
+            } catch (e) { /* تجاهل — فشل فتح النافذة لا يؤثر على الصفحة الحالية */ }
+        }
+        window.openInNewWindow = openInNewWindow;
+        @endif
 
         @if (config('sync.enabled'))
         // ===== المزامنة مع السيرفر (يدوي + تلقائي دوري) =====
