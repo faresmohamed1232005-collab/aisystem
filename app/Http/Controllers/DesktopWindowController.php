@@ -26,7 +26,7 @@ class DesktopWindowController extends Controller
         // الهدف يجب أن يكون عضواً في القائمة البيضاء: يضمن مساراً داخلياً موجوداً بلا params
         // ولا مسارات مدمّرة/خارجية (لا نمرّر url خام من المستخدم أبداً).
         $data = $request->validate([
-            'target' => ['required', 'string', Rule::in(DesktopWindows::POPPABLE)],
+            'target' => ['required', 'string', Rule::in(DesktopWindows::keys())],
         ]);
 
         // id فريد لكل نافذة — بدونه يستخدم NativePHP id='main' فيركّز/يستبدل النافذة الحالية.

@@ -558,14 +558,20 @@
                             class="absolute -top-1 -left-1 bg-red-500 text-white text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 hidden">0</span>
                     </a>
 
-                    {{-- زر «نافذة جديدة»: على الديسكتوب فقط، يفتح الشاشة الحالية في نافذة مستقلة
-                         (لو كانت من الشاشات المسموح فتحها) دون مغادرة النافذة الحالية. --}}
-                    @if (\App\Support\Runtime::isDesktop() && \App\Support\DesktopWindows::isPoppable(request()->route()?->getName()))
-                        <button type="button" onclick="openInNewWindow(@json(request()->route()->getName()))"
-                            title="افتح هذه الشاشة في نافذة جديدة"
-                            class="hidden sm:flex items-center gap-2 bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-600 px-3 h-9 rounded-lg text-sm font-semibold transition">
-                            <i class="fas fa-window-restore"></i><span class="hidden md:inline">نافذة جديدة</span>
-                        </button>
+                    {{-- قائمة «نافذة جديدة»: على الديسكتوب فقط — اختر شاشة لتفتح في نافذة مستقلة
+                         دون مغادرة نافذتك الحالية (فلا تضيع فاتورة أنت واقف عليها). --}}
+                    @if (\App\Support\Runtime::isDesktop())
+                        <div class="hidden sm:flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:border-indigo-200 px-2 h-9 transition"
+                             title="افتح شاشة في نافذة مستقلة">
+                            <i class="fas fa-window-restore text-xs text-gray-500"></i>
+                            <select onchange="if (this.value) { openInNewWindow(this.value); this.selectedIndex = 0; }"
+                                class="bg-transparent text-sm text-gray-600 focus:outline-none cursor-pointer max-w-[160px]">
+                                <option value="">نافذة جديدة…</option>
+                                @foreach (\App\Support\DesktopWindows::POPPABLE as $__route => $__meta)
+                                    <option value="{{ $__route }}">{{ $__meta['label'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     @endif
 
                     <div class="header-robot-wrap mini-robot" title="{{ $displayName }}">
